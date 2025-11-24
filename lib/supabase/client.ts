@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr"
 import type { SupabaseClient } from "@supabase/supabase-js"
+import { SUPABASE_CONFIG } from "./config"
 
 let client: SupabaseClient | undefined
 
@@ -8,7 +9,7 @@ export function createClient() {
     return client
   }
 
-  client = createBrowserClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+  client = createBrowserClient(SUPABASE_CONFIG.url, SUPABASE_CONFIG.anonKey)
 
   return client
 }
