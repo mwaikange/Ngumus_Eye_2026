@@ -30,46 +30,58 @@ export function IncidentCard({ incident }: IncidentCardProps) {
 
   return (
     <Link href={`/incident/${incident.id}`}>
-      <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2 flex-wrap">
-                <Badge className={severityColor}>{incident.incident_types.label}</Badge>
-                {incident.verification_level > 0 && (
-                  <Badge variant="outline" className="text-xs">
-                    ✓ {verificationLabels[incident.verification_level]}
-                  </Badge>
-                )}
-              </div>
+      <Card className="hover:bg-accent/50 transition-colors cursor-pointer overflow-hidden">
+        <CardContent className="p-0">
+          {incident.media_urls && incident.media_urls.length > 0 && (
+            <div className="w-full aspect-video bg-muted relative overflow-hidden">
+              <img
+                src={incident.media_urls[0] || "/placeholder.svg"}
+                alt={incident.title}
+                className="w-full h-full object-cover"
+              />
+            </div>
+          )}
 
-              <h3 className="font-semibold leading-tight text-balance">{incident.title}</h3>
-
-              {incident.description && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{incident.description}</p>
-              )}
-
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                <div className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  <span>{formatDistanceToNow(new Date(incident.created_at), { addSuffix: true })}</span>
+          <div className="p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex-1 space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className={severityColor}>{incident.incident_types.label}</Badge>
+                  {incident.verification_level > 0 && (
+                    <Badge variant="outline" className="text-xs">
+                      ✓ {verificationLabels[incident.verification_level]}
+                    </Badge>
+                  )}
                 </div>
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  <span>{incident.area_radius_m}m radius</span>
-                </div>
-                {incident._count && (
-                  <>
-                    <div className="flex items-center gap-1">
-                      <Eye className="h-3 w-3" />
-                      <span>{incident._count.reactions}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <MessageSquare className="h-3 w-3" />
-                      <span>{incident._count.comments}</span>
-                    </div>
-                  </>
+
+                <h3 className="font-semibold leading-tight text-balance">{incident.title}</h3>
+
+                {incident.description && (
+                  <p className="text-sm text-muted-foreground line-clamp-2">{incident.description}</p>
                 )}
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3 w-3" />
+                    <span>{formatDistanceToNow(new Date(incident.created_at), { addSuffix: true })}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    <span>{incident.area_radius_m}m radius</span>
+                  </div>
+                  {incident._count && (
+                    <>
+                      <div className="flex items-center gap-1">
+                        <Eye className="h-3 w-3" />
+                        <span>{incident._count.reactions}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />
+                        <span>{incident._count.comments}</span>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
           </div>
