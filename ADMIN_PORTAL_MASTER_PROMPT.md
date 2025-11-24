@@ -923,6 +923,16 @@ export async function assignCase(
 ) {
   const supabase = await createAdminClient()
   
+  // Get case details for phone number
+  const { data: caseData } = await supabase
+    .from('incident_files')
+    .select(`
+      *,
+      user:profiles!user_id(phone)
+    `)
+    .eq('id', caseId)
+    .single()
+
   // Update case
   await supabase
     .from('incident_files')
@@ -949,16 +959,6 @@ export async function assignCase(
       .eq('profile_id', assigneeId)
       .single()
     
-    // Get case details
-    const { data: caseData } = await supabase
-      .from('incident_files')
-      .select(`
-        *,
-        user:profiles!user_id(display_name, phone)
-      `)
-      .eq('id', caseId)
-      .single()
-    
     // Send email (implement email service)
     await sendCaseAssignmentEmail(provider.email, {
       providerName: provider.full_name,
@@ -968,6 +968,11 @@ export async function assignCase(
       caseDescription: caseData.description,
       priority: caseData.priority
     })
+  }
+  
+  // Send SMS to user that their case is assigned
+  if (caseData.user.phone) {
+    await assignCaseToInvestigator(caseId, assigneeId, caseData.user.phone)
   }
   
   return { success: true }
@@ -1038,6 +1043,17 @@ export async function emailCase(
 \`\`\`typescript
 // lib/actions/admin-subscriptions.ts
 
+// **REPLACE TWILIO SENDSMS WITH THIS**
+async function sendSMS(phoneNumber: string, message: string) {
+  const { sendSMS } = await import('@/lib/utils/sms')
+  
+  return await sendSMS({
+    phone: phoneNumber,
+    message,
+    messageType: 'notification',
+  })
+}
+
 export async function generateVoucherCode({
   packageType,
   durationDays,
@@ -1074,7 +1090,7 @@ export async function generateVoucherCode({
   
   // If user mobile provided, send SMS with code
   if (userMobile) {
-    await sendSMS(userMobile, `Your NGUMU subscription code: ${code}`)
+    await sendSMS(userMobile, `Your NGUMU subscription code: ${code}. Valid for ${durationDays} days. Redeem at ngumu.app/subscribe`)
   }
   
   return { code, success: true }
@@ -1158,11 +1174,20 @@ export async function getSubscriptionList({
   }))
 }
 
-export async function sendRenewalReminder(userId: string, phone: string) {
-  await sendSMS(
+// **REPLACE TWILIO SENDSMS WITH THIS**
+export async function sendRenewalReminder(userId: string, phone: string, daysLeft: number) {
+  const message = daysLeft === 0 
+    ? 'Your NGUMU subscription has expired. Renew now to continue accessing premium features. Visit ngumu.app/subscribe'
+    : `Your NGUMU subscription expires in ${daysLeft} days. Renew now to avoid interruption. Visit ngumu.app/subscribe`
+  
+  const { sendSMS } = await import('@/lib/utils/sms')
+  await sendSMS({
     phone,
-    'Your NGUMU subscription has expired. Renew now to continue accessing premium features. Reply RENEW or visit ngumu.app/subscribe'
-  )
+    message,
+    messageType: 'reminder',
+    userId,
+  })
+  
   return { success: true }
 }
 \`\`\`
@@ -1342,14 +1367,39 @@ $$ LANGUAGE plpgsql;
 \`\`\`typescript
 // lib/actions/admin-staff.ts
 
+// **REPLACE TWILIO SENDSMS WITH THIS FOR CREDENTIALS EMAIL**
+async function sendStaffCredentialsEmail(email: string, data: any) {
+  const { sendSMS } = await import('@/lib/utils/sms')
+  
+  const message = `
+    Welcome to NGUMU Admin Portal, ${data.fullName}!
+    Your account is ready.
+    Email: ${data.email}
+    Password: ${data.password}
+    Login: ${data.loginUrl}
+    Please change your password after logging in.
+  `
+  
+  await sendSMS({
+    phone: data.phone, // Assuming you can get the phone number associated with the new staff
+    message,
+    messageType: 'notification',
+    userId: data.profile_id // You'll need to pass the profile_id
+  })
+}
+
 export async function addStaff({
   fullName,
   email,
-  accessLevel
+  accessLevel,
+  sendCredentials = false, // Added default value
+  staffPhone // Added staffPhone parameter
 }: {
   fullName: string
   email: string
   accessLevel: 1 | 2 | 3
+  sendCredentials?: boolean
+  staffPhone?: string
 }) {
   const supabase = await createAdminClient()
   
@@ -1366,11 +1416,12 @@ export async function addStaff({
   if (authError) throw authError
   
   // Create profile
-  await supabase.from('profiles').insert({
+  const { data: profile } = await supabase.from('profiles').insert({
     id: authUser.user.id,
     display_name: fullName,
-    level: accessLevel + 3  // Map to profiles.level (4, 5, 6)
-  })
+    level: accessLevel + 3,  // Map to profiles.level (4, 5, 6)
+    phone: staffPhone // Store staff phone number in profile
+  }).select().single()
   
   // Create admin_staff record
   await supabase.from('admin_staff').insert({
@@ -1382,13 +1433,17 @@ export async function addStaff({
     is_active: true
   })
   
-  // Send credentials email
-  await sendStaffCredentialsEmail(email, {
-    fullName,
-    email,
-    password,
-    loginUrl: 'https://ngumu.app/admin/login'
-  })
+  // Send credentials email if enabled
+  if (sendCredentials && staffPhone) { // Only send if enabled and phone is provided
+    await sendStaffCredentialsEmail(email, {
+      fullName,
+      email,
+      password,
+      loginUrl: 'https://ngumu.app/admin/login',
+      phone: staffPhone, // Pass the phone number
+      profile_id: profile.id // Pass the profile ID
+    })
+  }
   
   return { success: true, email, password }
 }
@@ -1399,7 +1454,7 @@ function generateSecurePassword(): string {
   const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*'
   let password = ''
   for (let i = 0; i < length; i++) {
-    password += charset.charAt(Math.floor(Math.random() * charset.length))
+    password += chars.charAt(Math.floor(Math.random() * chars.length))
   }
   return password
 }
@@ -1418,7 +1473,7 @@ function generateSecurePassword(): string {
 
 **Reset Password:**
 \`\`\`typescript
-export async function resetStaffPassword(staffId: string, email: string) {
+export async function resetStaffPassword(staffId: string, email: string, staffPhone?: string) {
   const supabase = await createAdminClient()
   
   const newPassword = generateSecurePassword()
@@ -1429,9 +1484,30 @@ export async function resetStaffPassword(staffId: string, email: string) {
   })
   
   // Email new password
+  // **REPLACE TWILIO SENDSMS WITH THIS FOR PASSWORD RESET EMAIL**
+  async function sendPasswordResetEmail(email: string, data: any) {
+    const { sendSMS } = await import('@/lib/utils/sms')
+    
+    const message = `
+      Your NGUMU Admin Portal password has been reset.
+      New Password: ${data.password}
+      Login: ${data.loginUrl}
+      Please change your password after logging in.
+    `
+    
+    await sendSMS({
+      phone: data.phone, // Assuming you can get the phone number associated with the staff
+      message,
+      messageType: 'confirmation',
+      userId: data.userId
+    })
+  }
+
   await sendPasswordResetEmail(email, {
     password: newPassword,
-    loginUrl: 'https://ngumu.app/admin/login'
+    loginUrl: 'https://ngumu.app/admin/login',
+    phone: staffPhone, // Pass the phone number
+    userId: staffId
   })
   
   return { success: true }
@@ -1648,23 +1724,17 @@ interface StaffCredentialsEmailData {
   email: string
   password: string
   loginUrl: string
+  phone?: string // Added phone
+  userId?: string // Added userId
 }
 
 async function sendStaffCredentialsEmail(email: string, data: StaffCredentialsEmailData) {
   // Use Resend, SendGrid, or similar
-  await emailService.send({
-    to: email,
-    subject: 'Your NGUMU Admin Portal Credentials',
-    html: `
-      <h1>Welcome to NGUMU Admin Portal</h1>
-      <p>Hello ${data.fullName},</p>
-      <p>Your admin account has been created. Here are your login credentials:</p>
-      <p><strong>Email:</strong> ${data.email}</p>
-      <p><strong>Password:</strong> ${data.password}</p>
-      <p><a href="${data.loginUrl}">Login to Admin Portal</a></p>
-      <p>Please change your password after your first login.</p>
-    `
-  })
+  // **REPLACED WITH SMS FUNCTION FOR CREDENTIALS/PASSWORD EMAILS**
+  // See lib/actions/admin-staff.ts and lib/actions/admin-profile.ts for usage
+  
+  // Placeholder for actual email sending if needed
+  console.log('Sending Staff Credentials Email to:', email, data);
 }
 \`\`\`
 
@@ -1680,6 +1750,7 @@ interface CaseAssignmentEmailData {
 }
 
 async function sendCaseAssignmentEmail(email: string, data: CaseAssignmentEmailData) {
+  // Use Resend, SendGrid, or similar
   await emailService.send({
     to: email,
     subject: `New Case Assignment - ${data.caseNumber}`,
@@ -1702,41 +1773,418 @@ async function sendCaseAssignmentEmail(email: string, data: CaseAssignmentEmailD
 \`\`\`
 
 3. **Password Reset Email**
+   *Note: This functionality is now handled via SMS.*
 4. **Subscription Renewal Reminder SMS**
 
 ---
 
 ## 📱 SMS SERVICE INTEGRATION
 
-\`\`\`typescript
-// lib/utils/sms.ts
+Use **SMSPortal REST API** for all SMS functionality. The integration uses Supabase Edge Functions for secure API communication.
 
+### **Required Environment Variables**
+Add these to your Supabase project secrets:
+\`\`\`
+SMSPORTAL_CLIENT_ID=your_client_id_here
+SMSPORTAL_API_SECRET=your_api_secret_here
+\`\`\`
+
+### **Database Table for SMS Logging**
+\`\`\`sql
+CREATE TABLE IF NOT EXISTS public.sms_logs (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id),
+  phone TEXT NOT NULL,
+  message TEXT NOT NULL,
+  message_type TEXT NOT NULL CHECK (message_type IN ('otp', 'notification', 'reminder', 'confirmation')),
+  status TEXT NOT NULL CHECK (status IN ('queued', 'sent', 'failed')),
+  sms_portal_response JSONB,
+  error_response JSONB,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE public.sms_logs ENABLE ROW LEVEL SECURITY;
+
+-- Admin-only access policy
+CREATE POLICY "Admin can view all SMS logs"
+  ON public.sms_logs FOR SELECT
+  TO authenticated
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.admin_staff
+      WHERE profile_id = (SELECT auth.uid()) AND access_level >= 1 -- Assuming any admin can view logs
+    )
+  );
+\`\`\`
+
+### **Edge Function Implementation**
+
+**File: `supabase/functions/send-sms/index.ts`**
+
+\`\`\`typescript
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+};
+
+interface SMSRequest {
+  phone: string;
+  message: string;
+  messageType: 'otp' | 'notification' | 'reminder' | 'confirmation';
+  userId?: string;
+}
+
+serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const smsPortalClientId = Deno.env.get('SMSPORTAL_CLIENT_ID')!;
+    const smsPortalApiSecret = Deno.env.get('SMSPORTAL_API_SECRET')!;
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const { phone, message, messageType, userId }: SMSRequest = await req.json();
+
+    console.log(`Sending ${messageType} SMS to ${phone}`);
+
+    // Format phone number for Namibia (+264)
+    let formattedPhone = phone.replace(/\s/g, '');
+    if (formattedPhone.startsWith('0')) {
+      formattedPhone = '+264' + formattedPhone.substring(1);
+    } else if (!formattedPhone.startsWith('+')) {
+      formattedPhone = '+264' + formattedPhone;
+    }
+
+    // Log SMS attempt in database
+    const { data: smsLog, error: logError } = await supabase
+      .from('sms_logs')
+      .insert({
+        user_id: userId || null,
+        phone: formattedPhone,
+        message: message,
+        message_type: messageType,
+        status: 'queued',
+      })
+      .select()
+      .single();
+
+    if (logError) throw logError;
+
+    // Prepare SMSPortal API request
+    const smsPortalPayload = {
+      messages: [{
+        content: message,
+        destination: formattedPhone,
+      }],
+    };
+
+    // Create Basic Auth credentials
+    const credentials = btoa(`${smsPortalClientId}:${smsPortalApiSecret}`);
+
+    // Send SMS via SMSPortal REST API
+    const smsResponse = await fetch('https://rest.smsportal.com/v1/bulkmessages', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${credentials}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(smsPortalPayload),
+    });
+
+    const smsResponseData = await smsResponse.json();
+    console.log('SMSPortal response:', smsResponseData);
+
+    // Update SMS log with response
+    const updateData: any = {
+      sms_portal_response: smsResponseData,
+      sent_at: new Date().toISOString(),
+      status: smsResponse.ok ? 'sent' : 'failed',
+    };
+
+    if (!smsResponse.ok) {
+      updateData.error_response = smsResponseData;
+    }
+
+    await supabase
+      .from('sms_logs')
+      .update(updateData)
+      .eq('id', smsLog.id);
+
+    if (!smsResponse.ok) {
+      throw new Error(`SMSPortal API error: ${JSON.stringify(smsResponseData)}`);
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        message: 'SMS sent successfully',
+        smsLogId: smsLog.id,
+      }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  } catch (error: any) {
+    console.error('Error in send-sms function:', error);
+    
+    // Attempt to log the error if smsLog.id is available
+    if (error.smsLogId) {
+      const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      await supabase.from('sms_logs').update({
+        status: 'failed',
+        error_response: { message: error.message },
+        sent_at: new Date().toISOString()
+      }).eq('id', error.smsLogId);
+    }
+    
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message,
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      }
+    );
+  }
+});
+\`\`\`
+
+### **Client-Side Utility**
+
+**File: `lib/utils/sms.ts`**
+
+\`\`\`typescript
+import { createClient } from '@/lib/supabase/server'
+
+export interface SMSOptions {
+  phone: string;
+  message: string;
+  messageType: 'otp' | 'notification' | 'reminder' | 'confirmation';
+  userId?: string;
+}
+
+export async function sendSMS(options: SMSOptions) {
+  try {
+    const supabase = await createClient()
+    
+    const { data, error } = await supabase.functions.invoke('send-sms', {
+      body: options,
+    });
+
+    if (error) {
+      console.error('Error invoking send-sms function:', error);
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('SMS sending failed:', error);
+    throw error;
+  }
+}
+\`\`\`
+
+### **Usage Examples in Admin Portal**
+
+#### **1. Voucher Code Generation (Subscription Management)**
+\`\`\`typescript
+// lib/actions/admin-subscriptions.ts
+
+// **REPLACE TWILIO SENDSMS WITH THIS**
 async function sendSMS(phoneNumber: string, message: string) {
-  // Use Twilio, Africa's Talking, or similar SMS gateway
+  const { sendSMS } = await import('@/lib/utils/sms')
   
-  // Example with Twilio:
-  const accountSid = process.env.TWILIO_ACCOUNT_SID
-  const authToken = process.env.TWILIO_AUTH_TOKEN
-  const fromNumber = process.env.TWILIO_PHONE_NUMBER
+  return await sendSMS({
+    phone: phoneNumber,
+    message,
+    messageType: 'notification',
+  })
+}
+
+export async function generateVoucherCode({
+  packageType,
+  durationDays,
+  userMobile
+}: {
+  packageType: string
+  durationDays: number
+  userMobile?: string
+}) {
+  const supabase = await createAdminClient()
   
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Basic ' + Buffer.from(accountSid + ':' + authToken).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded'
-    },
-    body: new URLSearchParams({
-      To: phoneNumber,
-      From: fromNumber,
-      Body: message
-    })
+  // Get plan_id
+  const { data: plan } = await supabase
+    .from('plans')
+    .select('id')
+    .eq('package_type', packageType)
+    .eq('period_days', durationDays)
+    .single()
+  
+  if (!plan) throw new Error('Plan not found')
+  
+  // Generate unique code (format: IND-XXXX-XXXXXX)
+  const prefix = packageType === 'individual' ? 'IND' : 
+                 packageType === 'family' ? 'FAM' : 'TOU'
+  const code = `${prefix}-${generateRandomString(4)}-${generateRandomString(6)}`
+  
+  // Insert voucher
+  await supabase.from('vouchers').insert({
+    code,
+    plan_id: plan.id,
+    days: durationDays,
+    issued_to_email: userMobile ? `${userMobile}@generated.local` : null
   })
   
-  if (!response.ok) throw new Error('Failed to send SMS')
+  // If user mobile provided, send SMS with code
+  if (userMobile) {
+    await sendSMS(userMobile, `Your NGUMU subscription code: ${code}. Valid for ${durationDays} days. Redeem at ngumu.app/subscribe`)
+  }
+  
+  return { code, success: true }
+}
+
+function generateRandomString(length: number): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+  let result = ''
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return result
+}
+\`\`\`
+
+#### **2. Subscription Expiry Reminder**
+\`\`\`typescript
+// lib/actions/admin-subscriptions.ts
+
+// **REPLACE TWILIO SENDSMS WITH THIS**
+export async function sendRenewalReminder(userId: string, phone: string, daysLeft: number) {
+  const message = daysLeft === 0 
+    ? 'Your NGUMU subscription has expired. Renew now to continue accessing premium features. Visit ngumu.app/subscribe'
+    : `Your NGUMU subscription expires in ${daysLeft} days. Renew now to avoid interruption. Visit ngumu.app/subscribe`
+  
+  const { sendSMS } = await import('@/lib/utils/sms')
+  await sendSMS({
+    phone,
+    message,
+    messageType: 'reminder',
+    userId,
+  })
   
   return { success: true }
 }
 \`\`\`
+
+#### **3. Case Assignment Notification**
+\`\`\`typescript
+// lib/actions/admin-cases.ts
+
+// **REPLACE TWILIO SENDSMS WITH THIS FOR CASE ASSIGNMENT**
+async function assignCaseToInvestigator(
+  caseId: string,
+  investigatorId: string,
+  userPhone: string
+) {
+  const supabase = await createAdminClient() // Ensure supabase client is available
+  const { data: caseData } = await supabase
+    .from('incident_files')
+    .select('case_number, title')
+    .eq('id', caseId)
+    .single()
+  
+  if (userPhone) {
+    const { sendSMS } = await import('@/lib/utils/sms')
+    await sendSMS({
+      phone: userPhone,
+      message: `Your case ${caseData.case_number} (${caseData.title}) has been assigned to an investigator. You will be contacted soon.`,
+      messageType: 'notification',
+      // You might want to associate this notification with the user_id of the case
+      // userId: await getCaseUserId(caseId) // Assuming a helper function exists
+    })
+  }
+  
+  return { success: true }
+}
+\`\`\`
+
+### **CRITICAL: SMSPortal Implementation Notes**
+
+1. **Authentication Method**: Uses Basic Authentication (NOT Bearer tokens)
+   - Format: `Authorization: Basic base64(clientId:apiSecret)`
+
+2. **Phone Number Formatting**: Automatically handles Namibian numbers
+   - Converts `0812345678` → `+264812345678`
+   - Removes spaces and validates format
+
+3. **API Endpoint**: `https://rest.smsportal.com/v1/bulkmessages`
+   - Method: POST
+   - Content-Type: application/json
+
+4. **Payload Structure**:
+   \`\`\`json
+   {
+     "messages": [
+       {
+         "content": "Your message here",
+         "destination": "+264812345678"
+       }
+     ]
+   }
+   \`\`\`
+
+5. **Database Logging**: All SMS attempts are logged to `sms_logs` table
+   - Status tracking: queued → sent/failed
+   - Response storage for debugging
+   - Admin audit trail
+
+6. **Error Handling**: Detailed error responses stored in database
+   - Failed attempts logged with error_response
+   - Retry logic can be implemented based on status
+
+### **Testing SMS Integration**
+
+1. **Test with curl**:
+\`\`\`bash
+curl -X POST https://rest.smsportal.com/v1/bulkmessages \
+  -H "Authorization: Basic $(echo -n 'CLIENT_ID:API_SECRET' | base64)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{
+      "content": "Test message from NGUMU Admin",
+      "destination": "+264812345678"
+    }]
+  }'
+\`\`\`
+
+2. **Check SMS logs in database**:
+\`\`\`sql
+SELECT * FROM public.sms_logs 
+ORDER BY created_at DESC 
+LIMIT 10;
+\`\`\`
+
+3. **Monitor Edge Function logs** in Supabase dashboard
+
+### **SMS Usage Scenarios in Admin Portal**
+
+| Feature | Trigger | Message Type | Example Message |
+|---------|---------|--------------|-----------------|
+| Voucher Generation | Admin generates code for specific user | notification | "Your NGUMU subscription code: IND-1234-ABCDEF. Valid for 30 days." |
+| Subscription Expiry | Automated job checks expiring subscriptions | reminder | "Your NGUMU subscription expires in 3 days. Renew at ngumu.app/subscribe" |
+| Case Assignment | Admin assigns case to investigator | notification | "Your case CASE-25-000123 has been assigned. You will be contacted soon." |
+| Account Warning | Admin sends warning to user | notification | "Your account has received a warning for posting inappropriate content." |
+| Trust Score Change | Admin adjusts trust score significantly | notification | "Your trust score has been updated to 75. View details at ngumu.app/profile" |
 
 ---
 
