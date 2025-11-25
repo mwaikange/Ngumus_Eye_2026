@@ -22,8 +22,8 @@ async function getFeedData() {
         created_at,
         area_radius_m,
         verification_level,
-        media_urls,
-        incident_types(label, severity)
+        incident_types(label, severity),
+        incident_media(path)
       `,
       )
       .order("created_at", { ascending: false })
@@ -47,7 +47,7 @@ async function getFeedData() {
       created_at: row.created_at,
       area_radius_m: row.area_radius_m ?? null,
       verification_level: row.verification_level ?? null,
-      media_urls: Array.isArray(row.media_urls) ? row.media_urls.filter(Boolean) : [],
+      media_urls: row.incident_media?.map((m: any) => m.path).filter(Boolean) || [],
       severity: row.incident_types?.severity || 1,
     })) ?? []
 
