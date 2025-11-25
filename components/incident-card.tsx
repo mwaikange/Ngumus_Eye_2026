@@ -1,92 +1,68 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { MapPin, Clock, Eye, MessageSquare } from "lucide-react"
-import type { IncidentWithType } from "@/lib/types/database"
-import { formatDistanceToNow } from "date-fns"
 import Link from "next/link"
+import { formatTimeAgo, formatRadius } from "@/lib/feed-utils"
 
 interface IncidentCardProps {
-  incident: IncidentWithType & {
-    _count?: {
-      comments: number
-      reactions: number
-    }
+  incident: {
+    id: string
+    title: string
+    description: string | null
+    category: string
+    created_at: string
+    area_radius_m: number | null
+    verification_level: number | null
+    media_urls: string[]
+    severity: number
   }
 }
 
 const severityColors = {
-  1: "bg-muted text-muted-foreground",
-  2: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400",
-  3: "bg-orange-500/10 text-orange-700 dark:text-orange-400",
-  4: "bg-red-500/10 text-red-700 dark:text-red-400",
-  5: "bg-destructive/10 text-destructive",
+  1: "bg-blue-100 text-blue-700",
+  2: "bg-yellow-100 text-yellow-700",
+  3: "bg-orange-100 text-orange-700",
+  4: "bg-red-100 text-red-700",
+  5: "bg-red-200 text-red-900",
 }
 
-const verificationLabels = ["Unverified", "Witness", "Moderator", "Partner"]
-
 export function IncidentCard({ incident }: IncidentCardProps) {
-  const severityColor =
-    severityColors[incident.incident_types.severity as keyof typeof severityColors] || severityColors[1]
+  const imageUrl = incident.media_urls?.[0]
+  const severityColor = severityColors[incident.severity as keyof typeof severityColors] || severityColors[1]
 
   return (
     <Link href={`/incident/${incident.id}`}>
-      <Card className="hover:bg-accent/50 transition-colors cursor-pointer overflow-hidden">
-        <CardContent className="p-0">
-          {incident.media_urls && incident.media_urls.length > 0 && (
-            <div className="w-full aspect-video bg-muted relative overflow-hidden">
-              <img
-                src={incident.media_urls[0] || "/placeholder.svg"}
-                alt={incident.title}
-                className="w-full h-full object-cover"
-              />
-            </div>
-          )}
-
-          <div className="p-4">
-            <div className="flex items-start gap-3">
-              <div className="flex-1 space-y-2">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge className={severityColor}>{incident.incident_types.label}</Badge>
-                  {incident.verification_level > 0 && (
-                    <Badge variant="outline" className="text-xs">
-                      ✓ {verificationLabels[incident.verification_level]}
-                    </Badge>
-                  )}
-                </div>
-
-                <h3 className="font-semibold leading-tight text-balance">{incident.title}</h3>
-
-                {incident.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{incident.description}</p>
-                )}
-
-                <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                  <div className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatDistanceToNow(new Date(incident.created_at), { addSuffix: true })}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <MapPin className="h-3 w-3" />
-                    <span>{incident.area_radius_m}m radius</span>
-                  </div>
-                  {incident._count && (
-                    <>
-                      <div className="flex items-center gap-1">
-                        <Eye className="h-3 w-3" />
-                        <span>{incident._count.reactions}</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />
-                        <span>{incident._count.comments}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+      <article className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
+        {/* Full width image at top */}
+        {imageUrl && (
+          <div className="w-full h-52 bg-gray-100">
+            <img
+              src={imageUrl || "/placeholder.svg"}
+              alt={incident.title}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
           </div>
-        </CardContent>
-      </Card>
+        )}
+
+        <div className="p-3">
+          {/* Category pill */}
+          <div
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${severityColor}`}
+          >
+            {incident.category}
+          </div>
+
+          {/* Title */}
+          <h2 className="text-base font-semibold text-gray-900 mb-1 line-clamp-2">{incident.title}</h2>
+
+          {/* Description */}
+          {incident.description && <p className="text-sm text-gray-600 mb-3 line-clamp-2">{incident.description}</p>}
+
+          {/* Footer: time + radius */}
+          <div className="flex items-center justify-between text-[11px] text-gray-500">
+            <span>{formatTimeAgo(incident.created_at)}</span>
+            {incident.area_radius_m != null && <span>{formatRadius(incident.area_radius_m)}</span>}
+          </div>
+        </div>
+      </article>
     </Link>
   )
 }

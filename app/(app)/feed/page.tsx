@@ -3,91 +3,114 @@ import { IncidentCard } from "@/components/incident-card"
 import { AdCard } from "@/components/ad-card"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { mergePostsAndAds, type FeedPost, type FeedAd } from "@/lib/feed-utils"
 import { getActiveAds } from "@/lib/actions/ads"
 
-export default async function FeedPage() {
+async function getFeedData() {
   const supabase = await createClient()
 
-  const [incidentsResult, ads] = await Promise.all([
-    supabase.from("incidents").select("*").order("created_at", { ascending: false }).limit(20),
+  // Fetch incidents with related data
+  const [incidentsResult, adsData] = await Promise.all([
+    supabase
+      .from("incidents")
+      .select(
+        `
+        id,
+        title,
+        description,
+        type_id,
+        created_at,
+        area_radius_m,
+        verification_level,
+        media_urls,
+        incident_types(label, severity)
+      `,
+      )
+      .order("created_at", { ascending: false })
+      .limit(40),
     getActiveAds(),
   ])
 
   const { data: incidentsData, error: incidentsError } = incidentsResult
 
-  console.log("[v0] Feed incidents query:", {
-    count: incidentsData?.length,
-    error: incidentsError,
-    firstIncident: incidentsData?.[0],
-    adsCount: ads?.length,
-  })
-
-  let incidents = null
-  if (incidentsData && incidentsData.length > 0) {
-    const typeIds = [...new Set(incidentsData.map((i) => i.type_id).filter(Boolean))]
-    const userIds = [...new Set(incidentsData.map((i) => i.created_by).filter(Boolean))]
-
-    const [{ data: types }, { data: profiles }] = await Promise.all([
-      supabase.from("incident_types").select("*").in("id", typeIds),
-      supabase.from("profiles").select("id, display_name, trust_score").in("id", userIds),
-    ])
-
-    const typesMap = new Map(types?.map((t) => [t.id, t]) || [])
-    const profilesMap = new Map(profiles?.map((p) => [p.id, p]) || [])
-
-    incidents = incidentsData.map((incident) => ({
-      ...incident,
-      incident_types: typesMap.get(incident.type_id) || null,
-      profiles: profilesMap.get(incident.created_by) || null,
-    }))
+  if (incidentsError) {
+    console.error("[v0] Error loading incidents:", incidentsError)
   }
 
-  const feedItems: Array<{ type: "incident" | "ad"; data: any; key: string }> = []
-  if (incidents && incidents.length > 0) {
-    incidents.forEach((incident, index) => {
-      feedItems.push({ type: "incident", data: incident, key: `incident-${incident.id}` })
+  // Transform to feed format
+  const posts: FeedPost[] =
+    incidentsData?.map((row: any) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      category: row.incident_types?.label || "Incident",
+      created_at: row.created_at,
+      area_radius_m: row.area_radius_m ?? null,
+      verification_level: row.verification_level ?? null,
+      media_urls: Array.isArray(row.media_urls) ? row.media_urls.filter(Boolean) : [],
+      severity: row.incident_types?.severity || 1,
+    })) ?? []
 
-      if ((index + 1) % 3 === 0 && ads && ads.length > 0) {
-        const adIndex = Math.floor(index / 3) % ads.length
-        feedItems.push({ type: "ad", data: ads[adIndex], key: `ad-${ads[adIndex].id}-${index}` })
-      }
-    })
-  }
+  // Transform ads
+  const ads: FeedAd[] =
+    adsData?.map((ad) => ({
+      id: ad.id,
+      type: "ad" as const,
+      title: ad.title,
+      description: ad.description,
+      media_url: ad.media_url,
+      media_type: ad.media_type,
+      target_url: ad.target_url,
+    })) ?? []
+
+  // Merge with random ad insertion
+  return mergePostsAndAds(posts, ads)
+}
+
+export default async function FeedPage() {
+  const feedItems = await getFeedData()
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-[#F2F4F7]">
       <AppHeader title="Community Feed" showSearch />
 
-      <div className="container max-w-2xl px-4 py-4 space-y-4">
-        <Tabs defaultValue="all" className="w-full">
-          <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="all">All</TabsTrigger>
-            <TabsTrigger value="nearby">Nearby</TabsTrigger>
-            <TabsTrigger value="verified">Verified</TabsTrigger>
-            <TabsTrigger value="following">Following</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <main className="max-w-md mx-auto px-3 pb-6 pt-2">
+        {/* Filter tabs */}
+        <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-2">
+          <button className="px-3 py-1.5 rounded-full bg-gray-900 text-white text-xs font-medium whitespace-nowrap">
+            All
+          </button>
+          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
+            Nearby
+          </button>
+          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
+            Verified
+          </button>
+          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
+            Following
+          </button>
+        </div>
 
+        {/* Feed list */}
         <div className="space-y-3">
           {feedItems.length > 0 ? (
             feedItems.map((item) =>
-              item.type === "incident" ? (
-                <IncidentCard key={item.key} incident={item.data as any} />
+              item.type === "ad" ? (
+                <AdCard key={`ad-${item.id}`} ad={item} />
               ) : (
-                <AdCard key={item.key} ad={item.data} />
+                <IncidentCard key={`post-${item.id}`} incident={item} />
               ),
             )
           ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No incidents reported yet</p>
-              <Button className="mt-4" asChild>
+            <div className="text-center py-12 bg-white rounded-xl">
+              <p className="text-gray-500 mb-4">No incidents reported yet</p>
+              <Button asChild>
                 <a href="/report">Report an Incident</a>
               </Button>
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   )
 }
