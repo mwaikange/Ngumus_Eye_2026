@@ -102,7 +102,7 @@ export default async function FeedPage() {
           </button>
         </div>
 
-        <div className="space-y-6">
+        <div className="space-y-8">
           {feedItems.length > 0 ? (
             feedItems.map((item) =>
               item.type === "ad" ? (
