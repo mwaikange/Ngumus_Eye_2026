@@ -28,11 +28,11 @@ export function IncidentCard({ incident }: IncidentCardProps) {
   const severityColor = severityColors[incident.severity as keyof typeof severityColors] || severityColors[1]
 
   return (
-    <Link href={`/incident/${incident.id}`}>
+    <Link href={`/incident/${incident.id}`} className="block mb-6">
       <article className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
         {/* Full width image at top */}
         {imageUrl && (
-          <div className="w-full h-52 bg-gray-100">
+          <div className="w-full h-52 bg-gray-100 overflow-hidden">
             <img
               src={imageUrl || "/placeholder.svg"}
               alt={incident.title}

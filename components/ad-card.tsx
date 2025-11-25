@@ -21,7 +21,7 @@ export function AdCard({ ad }: AdCardProps) {
   const content = (
     <article className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
       {/* Ad image/banner */}
-      <div className="w-full bg-white">
+      <div className="w-full bg-white overflow-hidden">
         {ad.media_type === "image" && (
           <img
             src={ad.media_url || "/placeholder.svg"}
@@ -45,11 +45,11 @@ export function AdCard({ ad }: AdCardProps) {
 
   if (ad.target_url) {
     return (
-      <div onClick={handleAdClick} className="cursor-pointer hover:opacity-90 transition-opacity">
+      <div onClick={handleAdClick} className="cursor-pointer hover:opacity-90 transition-opacity mb-6">
         {content}
       </div>
     )
   }
 
-  return content
+  return <div className="mb-6">{content}</div>
 }
