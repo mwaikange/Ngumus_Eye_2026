@@ -341,7 +341,14 @@ export default function ReportPage() {
                       <Upload className="h-4 w-4 mr-2" />
                       Upload Photos or Videos
                     </Button>
-                    <p className="text-xs text-muted-foreground mt-1">Max 50MB per file. Images and videos only.</p>
+                    <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <p className="text-xs font-medium text-blue-900 mb-1">File Requirements:</p>
+                      <ul className="text-xs text-blue-700 space-y-0.5">
+                        <li>• Images: JPG, PNG, HEIC (max 50MB each)</li>
+                        <li>• Videos: MP4, MOV (max 50MB each)</li>
+                        <li>• Multiple files allowed</li>
+                      </ul>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -37,19 +37,30 @@ async function getFeedData() {
     console.error("[v0] Error loading incidents:", incidentsError)
   }
 
-  // Transform to feed format
   const posts: FeedPost[] =
-    incidentsData?.map((row: any) => ({
-      id: row.id,
-      title: row.title,
-      description: row.description,
-      category: row.incident_types?.label || "Incident",
-      created_at: row.created_at,
-      area_radius_m: row.area_radius_m ?? null,
-      verification_level: row.verification_level ?? null,
-      media_urls: row.incident_media?.map((m: any) => m.path).filter(Boolean) || [],
-      severity: row.incident_types?.severity || 1,
-    })) ?? []
+    incidentsData?.map((row: any) => {
+      // Convert storage paths to full public URLs
+      const mediaUrls =
+        row.incident_media
+          ?.map((m: any) => {
+            if (!m.path) return null
+            const { data } = supabase.storage.from("incident-media").getPublicUrl(m.path)
+            return data.publicUrl
+          })
+          .filter(Boolean) || []
+
+      return {
+        id: row.id,
+        title: row.title,
+        description: row.description,
+        category: row.incident_types?.label || "Incident",
+        created_at: row.created_at,
+        area_radius_m: row.area_radius_m ?? null,
+        verification_level: row.verification_level ?? null,
+        media_urls: mediaUrls,
+        severity: row.incident_types?.severity || 1,
+      }
+    }) ?? []
 
   // Transform ads
   const ads: FeedAd[] =
@@ -91,8 +102,7 @@ export default async function FeedPage() {
           </button>
         </div>
 
-        {/* Feed list */}
-        <div className="space-y-3">
+        <div className="space-y-6">
           {feedItems.length > 0 ? (
             feedItems.map((item) =>
               item.type === "ad" ? (
