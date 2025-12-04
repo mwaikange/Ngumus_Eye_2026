@@ -49,11 +49,16 @@ export async function createCase(formData: FormData) {
   const serialNumbers = formData.get("serial_numbers") as string
   const stolenItemRef = formData.get("stolen_item_ref") as string
 
+  const year = new Date().getFullYear()
+  const { data: sequenceData } = await supabase.rpc("get_next_case_number")
+  const caseNumber = `CASE-${year}-${String(sequenceData || 1).padStart(6, "0")}`
+
   const { data: newCase, error } = await supabase
     .from("cases")
     .insert({
       user_id: user.id,
       category: category,
+      case_number: caseNumber,
       title,
       description,
       status: "open",
@@ -75,20 +80,21 @@ export async function createCase(formData: FormData) {
   if (images.length > 0) {
     for (const image of images) {
       try {
-        const blob = await put(`case-files/${newCase.id}/${image.name}`, image, {
+        const blob = await put(`case-evidence/${newCase.id}/${image.name}`, image, {
           access: "public",
         })
 
-        await supabase.from("case_files").insert({
+        await supabase.from("case_evidence").insert({
           case_id: newCase.id,
-          file_path: blob.url,
+          file_url: blob.url,
           file_name: image.name,
           file_type: image.type,
           file_size: image.size,
+          description: "Incident evidence photo",
           uploaded_by: user.id,
         })
       } catch (err) {
-        console.error("[v0] Error uploading image:", err)
+        console.error("[v0] Error uploading evidence:", err)
       }
     }
   }
@@ -143,8 +149,8 @@ export async function getCaseDetails(caseId: string) {
     return { error: caseError.message }
   }
 
-  const { data: files } = await supabase
-    .from("case_files")
+  const { data: evidence } = await supabase
+    .from("case_evidence")
     .select("*")
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
@@ -155,10 +161,16 @@ export async function getCaseDetails(caseId: string) {
     .eq("case_id", caseId)
     .order("created_at", { ascending: false })
 
-  return { case: caseData, files, documents }
+  const { data: files } = await supabase
+    .from("case_files")
+    .select("*")
+    .eq("case_id", caseId)
+    .order("created_at", { ascending: false })
+
+  return { case: caseData, evidence, documents, files }
 }
 
-export async function uploadCaseFile(caseId: string, file: File, fileType: "image" | "document") {
+export async function uploadCaseFile(caseId: string, file: File, fileType: "evidence" | "document" | "file") {
   const supabase = await createClient()
 
   const {
@@ -174,21 +186,22 @@ export async function uploadCaseFile(caseId: string, file: File, fileType: "imag
       access: "public",
     })
 
-    if (fileType === "image") {
-      const { error } = await supabase.from("case_files").insert({
+    if (fileType === "evidence") {
+      const { error } = await supabase.from("case_evidence").insert({
         case_id: caseId,
-        file_path: blob.url,
+        file_url: blob.url,
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
+        description: "Evidence photo/video",
         uploaded_by: user.id,
       })
 
       if (error) {
-        console.error("[v0] Error uploading file:", error)
+        console.error("[v0] Error uploading evidence:", error)
         return { error: error.message }
       }
-    } else {
+    } else if (fileType === "document") {
       const { error } = await supabase.from("case_documents").insert({
         case_id: caseId,
         file_url: blob.url,
@@ -200,6 +213,20 @@ export async function uploadCaseFile(caseId: string, file: File, fileType: "imag
 
       if (error) {
         console.error("[v0] Error uploading document:", error)
+        return { error: error.message }
+      }
+    } else {
+      const { error } = await supabase.from("case_files").insert({
+        case_id: caseId,
+        file_path: blob.url,
+        file_name: file.name,
+        file_type: file.type,
+        file_size: file.size,
+        uploaded_by: user.id,
+      })
+
+      if (error) {
+        console.error("[v0] Error uploading file:", error)
         return { error: error.message }
       }
     }
@@ -230,12 +257,13 @@ export async function uploadCaseEvidence(caseId: string, formData: FormData) {
   const fileSize = formData.get("fileSize") as string
   const description = formData.get("description") as string
 
-  const { error } = await supabase.from("case_files").insert({
+  const { error } = await supabase.from("case_evidence").insert({
     case_id: caseId,
-    file_path: fileUrl,
+    file_url: fileUrl,
     file_type: fileType,
     file_name: fileName,
     file_size: fileSize ? Number.parseInt(fileSize) : null,
+    description: description || "Case evidence",
     uploaded_by: user.id,
   })
 
