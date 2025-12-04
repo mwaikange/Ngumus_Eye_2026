@@ -13,8 +13,10 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { createIncident, uploadIncidentMedia } from "@/lib/actions/incidents"
 import { useRouter } from "next/navigation"
-import { MapPin, AlertCircle, ChevronRight, ChevronLeft, Upload, X, Video } from "lucide-react"
+import { MapPin, AlertCircle, ChevronRight, ChevronLeft, Upload, X, Video, Loader2, CheckCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/hooks/use-toast"
+import { Progress } from "@/components/ui/progress"
 
 interface IncidentType {
   id: number
@@ -27,12 +29,15 @@ export default function ReportPage() {
   const [step, setStep] = useState(1)
   const [incidentTypes, setIncidentTypes] = useState<IncidentType[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "processing" | "success">("idle")
   const [error, setError] = useState<string | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationLoading, setLocationLoading] = useState(false)
   const [mediaFiles, setMediaFiles] = useState<File[]>([])
   const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
   const router = useRouter()
+  const { toast } = useToast()
 
   const [formData, setFormData] = useState({
     type_id: "",
@@ -71,6 +76,7 @@ export default function ReportPage() {
           lng: position.coords.longitude,
         })
         setLocationLoading(false)
+        toast({ title: "Location set", description: "Your current location has been captured" })
       },
       (error) => {
         setError("Unable to get your location. Please enable location services.")
@@ -89,7 +95,11 @@ export default function ReportPage() {
     })
 
     if (validFiles.length !== files.length) {
-      setError("Some files were skipped. Only images and videos under 50MB are allowed.")
+      toast({
+        title: "Some files skipped",
+        description: "Only images and videos under 50MB are allowed.",
+        variant: "destructive",
+      })
     }
 
     setMediaFiles((prev) => [...prev, ...validFiles])
@@ -117,8 +127,8 @@ export default function ReportPage() {
 
     setIsLoading(true)
     setError(null)
-
-    console.log("[v0] Submitting incident report...")
+    setUploadStatus("processing")
+    setUploadProgress(10)
 
     const result = await createIncident({
       type_id: Number.parseInt(formData.type_id),
@@ -129,31 +139,68 @@ export default function ReportPage() {
       area_radius_m: Number.parseInt(formData.area_radius_m),
     })
 
-    console.log("[v0] Create incident result:", result)
+    setUploadProgress(40)
 
     if (result.error) {
-      console.log("[v0] Error creating incident:", result.error)
       setError(result.error)
       setIsLoading(false)
+      setUploadStatus("idle")
+      toast({ title: "Error", description: result.error, variant: "destructive" })
     } else if (result.data) {
-      console.log("[v0] Incident created successfully, ID:", result.data.id)
-
       if (mediaFiles.length > 0) {
-        console.log("[v0] Uploading", mediaFiles.length, "media files...")
-        const uploadResult = await uploadIncidentMedia(result.data.id, mediaFiles)
-        console.log("[v0] Media upload result:", uploadResult)
+        setUploadStatus("uploading")
+        setUploadProgress(50)
+
+        // Simulate progress for media upload
+        const progressInterval = setInterval(() => {
+          setUploadProgress((prev) => Math.min(prev + 10, 90))
+        }, 200)
+
+        await uploadIncidentMedia(result.data.id, mediaFiles)
+        clearInterval(progressInterval)
       }
 
-      console.log("[v0] Waiting for database replication before redirect...")
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      setUploadProgress(100)
+      setUploadStatus("success")
 
-      console.log("[v0] Redirecting to /incident/" + result.data.id)
+      toast({ title: "Report submitted!", description: "Your incident has been reported successfully" })
+
+      // Brief delay to show success state before redirect
+      await new Promise((resolve) => setTimeout(resolve, 800))
       router.push(`/incident/${result.data.id}`)
     }
   }
 
   const canProceedStep1 = formData.type_id && location
   const canProceedStep2 = formData.title.trim().length > 0
+
+  const getSubmitButtonContent = () => {
+    switch (uploadStatus) {
+      case "processing":
+        return (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Processing...
+          </>
+        )
+      case "uploading":
+        return (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Uploading media...
+          </>
+        )
+      case "success":
+        return (
+          <>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Success! Redirecting...
+          </>
+        )
+      default:
+        return "Submit Report"
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -176,7 +223,7 @@ export default function ReportPage() {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2">
+          <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-2 animate-fade-in">
             <AlertCircle className="h-5 w-5 text-destructive flex-shrink-0 mt-0.5" />
             <p className="text-sm text-destructive">{error}</p>
           </div>
@@ -184,7 +231,7 @@ export default function ReportPage() {
 
         {/* Step 1: Type & Location */}
         {step === 1 && (
-          <Card>
+          <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle>What are you reporting?</CardTitle>
               <CardDescription>Select the type of incident and set the location</CardDescription>
@@ -212,7 +259,7 @@ export default function ReportPage() {
               <div className="space-y-2">
                 <Label>Location</Label>
                 {location ? (
-                  <div className="p-4 bg-muted rounded-lg space-y-2">
+                  <div className="p-4 bg-muted rounded-lg space-y-2 animate-fade-in">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <MapPin className="h-4 w-4 text-primary" />
@@ -223,6 +270,7 @@ export default function ReportPage() {
                       </Badge>
                     </div>
                     <Button variant="outline" size="sm" onClick={getCurrentLocation} disabled={locationLoading}>
+                      {locationLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
                       Update Location
                     </Button>
                   </div>
@@ -233,7 +281,11 @@ export default function ReportPage() {
                     onClick={getCurrentLocation}
                     disabled={locationLoading}
                   >
-                    <MapPin className="h-4 w-4 mr-2" />
+                    {locationLoading ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <MapPin className="h-4 w-4 mr-2" />
+                    )}
                     {locationLoading ? "Getting location..." : "Use Current Location"}
                   </Button>
                 )}
@@ -263,7 +315,7 @@ export default function ReportPage() {
 
         {/* Step 2: Details & Media */}
         {step === 2 && (
-          <Card>
+          <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle>Incident Details</CardTitle>
               <CardDescription>Provide a clear description and upload photos or videos</CardDescription>
@@ -300,7 +352,10 @@ export default function ReportPage() {
                   {mediaPreviews.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
                       {mediaPreviews.map((preview, index) => (
-                        <div key={index} className="relative aspect-square rounded-lg overflow-hidden bg-muted">
+                        <div
+                          key={index}
+                          className="relative aspect-square rounded-lg overflow-hidden bg-muted animate-fade-in"
+                        >
                           {mediaFiles[index].type.startsWith("image/") ? (
                             <img
                               src={preview || "/placeholder.svg"}
@@ -369,7 +424,7 @@ export default function ReportPage() {
 
         {/* Step 3: Review & Submit */}
         {step === 3 && (
-          <Card>
+          <Card className="animate-fade-in">
             <CardHeader>
               <CardTitle>Review & Submit</CardTitle>
               <CardDescription>Please review your report before submitting</CardDescription>
@@ -418,6 +473,18 @@ export default function ReportPage() {
                 </div>
               </div>
 
+              {isLoading && (
+                <div className="space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">
+                      {uploadStatus === "uploading" ? "Uploading media..." : "Processing..."}
+                    </span>
+                    <span className="font-medium">{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
+
               <div className="p-4 bg-muted/50 rounded-lg">
                 <p className="text-sm text-muted-foreground">
                   By submitting this report, you confirm that the information provided is accurate to the best of your
@@ -435,8 +502,12 @@ export default function ReportPage() {
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
-                <Button className="flex-1" onClick={handleSubmit} disabled={isLoading}>
-                  {isLoading ? "Submitting..." : "Submit Report"}
+                <Button
+                  className="flex-1 min-w-[140px] transition-all duration-200"
+                  onClick={handleSubmit}
+                  disabled={isLoading}
+                >
+                  {getSubmitButtonContent()}
                 </Button>
               </div>
             </CardContent>

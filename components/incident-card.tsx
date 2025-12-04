@@ -4,9 +4,11 @@ import type React from "react"
 import Link from "next/link"
 import { formatTimeAgo, formatRadius } from "@/lib/feed-utils"
 import { useState, useRef, type TouchEvent } from "react"
-import { ChevronLeft, ChevronRight, UserPlus, UserCheck } from "lucide-react"
+import { ChevronLeft, ChevronRight, UserPlus, UserCheck, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useToast } from "@/hooks/use-toast"
+import { followUser, unfollowUser } from "@/lib/actions/profile"
 
 interface IncidentCardProps {
   incident: {
@@ -41,6 +43,8 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0)
   const [isFollowing, setIsFollowing] = useState(incident.is_following || false)
   const [followLoading, setFollowLoading] = useState(false)
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const { toast } = useToast()
 
   const touchStartX = useRef(0)
   const touchEndX = useRef(0)
@@ -51,12 +55,14 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
   const nextImage = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setImageLoaded(false)
     setCurrentImageIndex((prev) => (prev + 1) % (incident.media_urls?.length || 1))
   }
 
   const prevImage = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    setImageLoaded(false)
     setCurrentImageIndex((prev) => (prev - 1 + (incident.media_urls?.length || 1)) % (incident.media_urls?.length || 1))
   }
 
@@ -75,11 +81,10 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
     if (Math.abs(diff) > minSwipeDistance) {
       e.preventDefault()
       e.stopPropagation()
+      setImageLoaded(false)
       if (diff > 0) {
-        // Swipe left - next image
         setCurrentImageIndex((prev) => (prev + 1) % (incident.media_urls?.length || 1))
       } else {
-        // Swipe right - prev image
         setCurrentImageIndex(
           (prev) => (prev - 1 + (incident.media_urls?.length || 1)) % (incident.media_urls?.length || 1),
         )
@@ -92,19 +97,35 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
     e.stopPropagation()
     if (!incident.reporter?.id || followLoading) return
 
+    const previousState = isFollowing
+    setIsFollowing(!isFollowing)
     setFollowLoading(true)
+
     try {
-      if (onFollow) {
-        await onFollow(incident.reporter.id)
+      if (previousState) {
+        const result = await unfollowUser(incident.reporter.id)
+        if (result.error) throw new Error(result.error)
+        toast({ title: "Unfollowed", description: `You unfollowed ${incident.reporter.display_name}` })
+      } else {
+        const result = await followUser(incident.reporter.id)
+        if (result.error) throw new Error(result.error)
+        toast({ title: "Following", description: `You are now following ${incident.reporter.display_name}` })
       }
-      setIsFollowing(!isFollowing)
+      if (onFollow) onFollow(incident.reporter.id)
+    } catch (error) {
+      setIsFollowing(previousState)
+      toast({
+        title: "Error",
+        description: "Failed to update follow status. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setFollowLoading(false)
     }
   }
 
   return (
-    <article className="bg-white rounded-xl shadow-sm overflow-hidden mb-6">
+    <article className="bg-white rounded-xl shadow-sm overflow-hidden mb-6 animate-fade-in">
       {incident.media_urls && incident.media_urls.length > 0 && (
         <div
           className="relative w-full h-52 bg-gray-100 overflow-hidden"
@@ -112,31 +133,36 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
           onTouchMove={handleTouchMove}
           onTouchEnd={handleTouchEnd}
         >
+          {!imageLoaded && (
+            <div className="absolute inset-0 bg-gray-200 animate-pulse">
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-shimmer" />
+            </div>
+          )}
           <img
             src={incident.media_urls[currentImageIndex] || "/placeholder.svg"}
             alt={incident.title}
-            className="w-full h-full object-cover"
+            className={`w-full h-full object-cover transition-all duration-500 ${imageLoaded ? "opacity-100 blur-0" : "opacity-0 blur-sm"}`}
             loading="lazy"
+            onLoad={() => setImageLoaded(true)}
           />
 
           {hasMultipleImages && (
             <>
               <button
                 onClick={prevImage}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white"
+                className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
               <button
                 onClick={nextImage}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
                 aria-label="Next image"
               >
                 <ChevronRight className="h-5 w-5" />
               </button>
 
-              {/* Image count indicator */}
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
                 {currentImageIndex + 1} / {incident.media_urls.length}
               </div>
@@ -145,22 +171,18 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
         </div>
       )}
 
-      <Link href={`/incident/${incident.id}`} className="block">
+      <Link href={`/incident/${incident.id}`} prefetch className="block">
         <div className="p-3">
-          {/* Category pill */}
           <div
             className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mb-2 ${severityColor}`}
           >
             {incident.category}
           </div>
 
-          {/* Title */}
           <h2 className="text-base font-semibold text-gray-900 mb-1 line-clamp-2">{incident.title}</h2>
 
-          {/* Description */}
           {incident.description && <p className="text-sm text-gray-600 mb-3 line-clamp-2">{incident.description}</p>}
 
-          {/* Footer: time + radius */}
           <div className="flex items-center justify-between text-[11px] text-gray-500">
             <span>{formatTimeAgo(incident.created_at)}</span>
             {incident.area_radius_m != null && <span>{formatRadius(incident.area_radius_m)}</span>}
@@ -183,12 +205,12 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
             <Button
               variant={isFollowing ? "secondary" : "outline"}
               size="sm"
-              className="h-7 text-xs px-2"
+              className="h-7 text-xs px-2 min-w-[80px] transition-all duration-200"
               onClick={handleFollow}
               disabled={followLoading}
             >
               {followLoading ? (
-                <span className="animate-spin h-3 w-3 border border-current border-t-transparent rounded-full" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : isFollowing ? (
                 <>
                   <UserCheck className="h-3 w-3 mr-1" />
