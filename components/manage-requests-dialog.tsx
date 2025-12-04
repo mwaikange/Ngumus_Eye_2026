@@ -13,7 +13,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
-import { Settings, Check, X } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Settings, Check, X, Loader2 } from "lucide-react"
 import { getPendingRequests, approveRequest, rejectRequest, getTrustScore } from "@/lib/actions/groups"
 import { useToast } from "@/hooks/use-toast"
 
@@ -26,6 +27,8 @@ export function ManageRequestsDialog({ groupId, triggerElement }: ManageRequests
   const [open, setOpen] = useState(false)
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
+  const [approveLoading, setApproveLoading] = useState<string | null>(null)
+  const [rejectLoading, setRejectLoading] = useState<string | null>(null)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -58,12 +61,13 @@ export function ManageRequestsDialog({ groupId, triggerElement }: ManageRequests
     setLoading(false)
   }
 
-  async function handleApprove(requestId: string) {
+  async function handleApprove(requestId: string, displayName: string) {
+    setApproveLoading(requestId)
     const result = await approveRequest(requestId, groupId)
     if (result.success) {
       toast({
-        title: "Request Approved",
-        description: result.message,
+        title: "Member Added",
+        description: `You added ${displayName} to this group.`,
       })
       loadRequests()
     } else {
@@ -73,14 +77,16 @@ export function ManageRequestsDialog({ groupId, triggerElement }: ManageRequests
         variant: "destructive",
       })
     }
+    setApproveLoading(null)
   }
 
   async function handleReject(requestId: string) {
+    setRejectLoading(requestId)
     const result = await rejectRequest(requestId, groupId)
     if (result.success) {
       toast({
-        title: "Request Rejected",
-        description: result.message,
+        title: "Request Declined",
+        description: "The membership request has been declined.",
       })
       loadRequests()
     } else {
@@ -90,6 +96,7 @@ export function ManageRequestsDialog({ groupId, triggerElement }: ManageRequests
         variant: "destructive",
       })
     }
+    setRejectLoading(null)
   }
 
   return (
@@ -109,27 +116,54 @@ export function ManageRequestsDialog({ groupId, triggerElement }: ManageRequests
         </DialogHeader>
 
         {loading ? (
-          <div className="text-center py-4">Loading...</div>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
         ) : requests.length === 0 ? (
-          <div className="text-center py-4 text-muted-foreground">No pending requests</div>
+          <div className="text-center py-8 text-muted-foreground">No pending requests</div>
         ) : (
           <div className="space-y-3">
             {requests.map((request) => (
               <div key={request.id} className="flex items-center justify-between p-3 border rounded-lg">
-                <div className="flex-1">
-                  <p className="font-medium">{request.display_name}</p>
-                  <div className="flex gap-2 mt-1">
-                    <Badge variant="secondary" className="text-xs">
+                <div className="flex items-center gap-3 flex-1">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={request.avatar_url || "/placeholder.svg"} />
+                    <AvatarFallback className="bg-primary/10 text-primary">
+                      {request.display_name?.charAt(0).toUpperCase() || "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium">{request.display_name}</p>
+                    <Badge variant="secondary" className="text-xs mt-1">
                       Trust Score: {request.trust_score || 0}
                     </Badge>
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button size="sm" variant="default" onClick={() => handleApprove(request.id)}>
-                    <Check className="h-4 w-4" />
+                  <Button
+                    size="sm"
+                    variant="default"
+                    onClick={() => handleApprove(request.id, request.display_name)}
+                    disabled={approveLoading === request.id || rejectLoading === request.id}
+                    className="bg-primary"
+                  >
+                    {approveLoading === request.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
                   </Button>
-                  <Button size="sm" variant="destructive" onClick={() => handleReject(request.id)}>
-                    <X className="h-4 w-4" />
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleReject(request.id)}
+                    disabled={approveLoading === request.id || rejectLoading === request.id}
+                  >
+                    {rejectLoading === request.id ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <X className="h-4 w-4" />
+                    )}
                   </Button>
                 </div>
               </div>

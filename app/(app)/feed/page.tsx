@@ -7,35 +7,53 @@ import { mergePostsAndAds, type FeedPost, type FeedAd } from "@/lib/feed-utils"
 import { getActiveAds } from "@/lib/actions/ads"
 import { FeedFilters } from "@/components/feed-filters"
 
-async function getFeedData(filter: string) {
+async function getFeedData(filter: string, userId?: string) {
   const supabase = await createClient()
 
-  // Fetch incidents with related data
-  const [incidentsResult, adsData] = await Promise.all([
-    supabase
-      .from("incidents")
-      .select(
-        `
-        id,
-        title,
-        description,
-        type_id,
-        created_at,
-        area_radius_m,
-        verification_level,
-        incident_types(label, severity),
-        incident_media(path)
-      `,
-      )
-      .order("created_at", { ascending: false })
-      .limit(40),
-    getActiveAds(),
-  ])
+  let query = supabase
+    .from("incidents")
+    .select(`
+      id,
+      title,
+      description,
+      type_id,
+      created_at,
+      created_by,
+      area_radius_m,
+      verification_level,
+      incident_types(label, severity),
+      incident_media(path),
+      profiles!incidents_created_by_fkey(id, display_name, avatar_url)
+    `)
+    .order("created_at", { ascending: false })
+    .limit(40)
+
+  if (filter === "following" && userId) {
+    const { data: followingData } = await supabase.from("user_follows").select("following_id").eq("follower_id", userId)
+
+    const followingIds = followingData?.map((f) => f.following_id) || []
+
+    if (followingIds.length > 0) {
+      query = query.in("created_by", followingIds)
+    } else {
+      // Return empty if not following anyone
+      return []
+    }
+  }
+
+  const [incidentsResult, adsData] = await Promise.all([query, getActiveAds()])
 
   const { data: incidentsData, error: incidentsError } = incidentsResult
 
   if (incidentsError) {
     console.error("[v0] Error loading incidents:", incidentsError)
+  }
+
+  let followingSet = new Set<string>()
+  if (userId) {
+    const { data: followingData } = await supabase.from("user_follows").select("following_id").eq("follower_id", userId)
+
+    followingSet = new Set(followingData?.map((f) => f.following_id) || [])
   }
 
   const posts: FeedPost[] =
@@ -60,6 +78,14 @@ async function getFeedData(filter: string) {
         verification_level: row.verification_level ?? null,
         media_urls: mediaUrls,
         severity: row.incident_types?.severity || 1,
+        reporter: row.profiles
+          ? {
+              id: row.profiles.id,
+              display_name: row.profiles.display_name || "Anonymous",
+              avatar_url: row.profiles.avatar_url,
+            }
+          : undefined,
+        is_following: row.profiles ? followingSet.has(row.profiles.id) : false,
       }
     }) ?? []
 
@@ -87,7 +113,14 @@ export default async function FeedPage({
   const params = await searchParams
   const filter = params.filter || "all"
 
-  const feedItems = await getFeedData(filter)
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  const feedItems = await getFeedData(filter, user?.id)
+
+  const isFollowingEmpty = filter === "following" && feedItems.length === 0
 
   return (
     <div className="min-h-screen bg-[#F2F4F7]">
@@ -97,7 +130,15 @@ export default async function FeedPage({
         <FeedFilters currentFilter={filter} />
 
         <div>
-          {feedItems.length > 0 ? (
+          {isFollowingEmpty ? (
+            <div className="text-center py-12 bg-white rounded-xl">
+              <p className="text-gray-500 mb-2">You're not following anyone yet</p>
+              <p className="text-gray-400 text-sm mb-4">Follow users to see their posts here</p>
+              <Button asChild variant="outline">
+                <a href="/feed">View All Posts</a>
+              </Button>
+            </div>
+          ) : feedItems.length > 0 ? (
             feedItems.map((item) =>
               item.type === "ad" ? (
                 <AdCard key={`ad-${item.id}`} ad={item} />

@@ -44,13 +44,13 @@ export default async function CaseDeckPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">My Case Deck</h1>
-            <p className="text-muted-foreground">Private investigator dashboard</p>
+            <h1 className="text-2xl font-bold">My Case Deck</h1>
+            <p className="text-muted-foreground text-sm">Private investigator dashboard</p>
           </div>
           <Link href="/case-deck/new">
-            <Button className="gap-2">
+            <Button className="gap-2" size="sm">
               <Plus className="h-4 w-4" />
-              Open New Case
+              New Case
             </Button>
           </Link>
         </div>
@@ -172,31 +172,24 @@ function CaseCard({ caseItem }: { caseItem: any }) {
 
   return (
     <Link href={`/case-deck/${caseItem.id}`}>
-      <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-        <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-2">
-                <Badge variant="outline" className={`${config.bg} ${config.color} border-0`}>
+      <Card className="hover:shadow-md transition-shadow">
+        <CardContent className="py-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              {caseItem.case_number && <p className="text-xs font-mono text-primary mb-1">{caseItem.case_number}</p>}
+              <div className="flex items-center gap-2 mb-1">
+                <Badge variant="outline" className={`${config.bg} ${config.color} border-0 text-xs`}>
                   {config.label}
                 </Badge>
-                <span className="text-xs text-muted-foreground">{caseItem.case_number}</span>
               </div>
-              <CardTitle className="text-lg line-clamp-1">{caseItem.title}</CardTitle>
-              <CardDescription className="line-clamp-2 mt-1">{caseItem.description}</CardDescription>
+              <h3 className="font-medium text-sm line-clamp-1">{caseItem.title}</h3>
+              <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{caseItem.description}</p>
             </div>
             <StatusIcon className={`h-5 w-5 ${config.color} flex-shrink-0`} />
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="flex items-center justify-between text-sm text-muted-foreground">
-            <div className="flex items-center gap-4">
-              <span className="capitalize">{caseItem.category?.replace("_", " ")}</span>
-              {caseItem.profiles?.display_name && (
-                <span className="text-xs">Investigator: {caseItem.profiles.display_name}</span>
-              )}
-            </div>
-            <span className="text-xs">{new Date(caseItem.created_at).toLocaleDateString()}</span>
+          <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+            <span className="capitalize">{caseItem.category?.replace("_", " ")}</span>
+            <span>{new Date(caseItem.created_at).toLocaleDateString()}</span>
           </div>
         </CardContent>
       </Card>

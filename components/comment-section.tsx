@@ -3,7 +3,8 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { User } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Loader2 } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { addComment } from "@/lib/actions/incidents"
 import { useState, useTransition } from "react"
@@ -13,7 +14,9 @@ interface Comment {
   body: string
   created_at: string
   profiles: {
+    id?: string
     display_name: string | null
+    avatar_url?: string | null
   } | null
 }
 
@@ -53,7 +56,14 @@ export function CommentSection({ incidentId, initialComments }: CommentSectionPr
           <div className="flex items-center justify-between">
             <p className="text-xs text-muted-foreground">{newComment.length}/500 characters</p>
             <Button onClick={handleSubmit} disabled={isPending || !newComment.trim()} size="sm">
-              {isPending ? "Posting..." : "Post Comment"}
+              {isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Posting...
+                </>
+              ) : (
+                "Post Comment"
+              )}
             </Button>
           </div>
         </CardContent>
@@ -64,9 +74,12 @@ export function CommentSection({ incidentId, initialComments }: CommentSectionPr
           <Card key={comment.id}>
             <CardContent className="pt-4">
               <div className="flex items-start gap-3">
-                <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <User className="h-4 w-4 text-primary" />
-                </div>
+                <Avatar className="h-8 w-8 flex-shrink-0">
+                  <AvatarImage src={comment.profiles?.avatar_url || "/placeholder.svg"} />
+                  <AvatarFallback className="text-xs bg-primary/10 text-primary">
+                    {comment.profiles?.display_name?.charAt(0).toUpperCase() || "U"}
+                  </AvatarFallback>
+                </Avatar>
                 <div className="flex-1 space-y-1">
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-medium">{comment.profiles?.display_name || "Anonymous"}</p>
