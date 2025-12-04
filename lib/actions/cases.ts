@@ -49,16 +49,19 @@ export async function createCase(formData: FormData) {
   const serialNumbers = formData.get("serial_numbers") as string
   const stolenItemRef = formData.get("stolen_item_ref") as string
 
+  const serial_number = crypto.randomUUID()
+
   const year = new Date().getFullYear()
   const { data: sequenceData } = await supabase.rpc("get_next_case_number")
-  const caseNumber = `CASE-${year}-${String(sequenceData || 1).padStart(6, "0")}`
+  const case_number = `CASE-${year}-${String(sequenceData || 1).padStart(6, "0")}`
 
   const { data: newCase, error } = await supabase
     .from("cases")
     .insert({
       user_id: user.id,
+      serial_number: serial_number, // REQUIRED field for CRM portal
+      case_number: case_number,
       category: category,
-      case_number: caseNumber,
       title,
       description,
       status: "open",
@@ -85,13 +88,13 @@ export async function createCase(formData: FormData) {
         })
 
         await supabase.from("case_evidence").insert({
-          case_id: newCase.id,
+          case_id: newCase.id, // Proper case_id linking
           file_url: blob.url,
           file_name: image.name,
           file_type: image.type,
           file_size: image.size,
           description: "Incident evidence photo",
-          uploaded_by: user.id,
+          uploaded_by: user.id, // Proper uploaded_by field
         })
       } catch (err) {
         console.error("[v0] Error uploading evidence:", err)
@@ -108,12 +111,12 @@ export async function createCase(formData: FormData) {
         })
 
         await supabase.from("case_documents").insert({
-          case_id: newCase.id,
+          case_id: newCase.id, // Proper case_id linking
           file_url: blob.url,
           file_name: doc.name,
           file_type: doc.type,
           file_size_bytes: doc.size,
-          uploaded_by: user.id,
+          uploaded_by: user.id, // Proper uploaded_by field
         })
       } catch (err) {
         console.error("[v0] Error uploading document:", err)
