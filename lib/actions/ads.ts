@@ -22,3 +22,29 @@ export async function getActiveAds() {
 
   return ads || []
 }
+
+export async function trackAdView(adId: string, userId?: string) {
+  const supabase = await createClient()
+
+  const { error } = await supabase.from("ad_views").insert({
+    ad_id: adId,
+    user_id: userId || null,
+  })
+
+  if (error) {
+    console.error("Error tracking ad view:", error)
+  }
+}
+
+export async function getAdViewStats(adId: string) {
+  const supabase = await createClient()
+
+  const { data, error } = await supabase.from("ad_view_stats").select("*").eq("ad_id", adId).single()
+
+  if (error) {
+    console.error("Error fetching ad stats:", error)
+    return null
+  }
+
+  return data
+}

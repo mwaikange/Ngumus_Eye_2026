@@ -8,6 +8,7 @@ import { redirect } from "next/navigation"
 import { signOut } from "@/lib/actions/auth"
 import { ActionButton } from "@/components/action-button-with-loading"
 import Link from "next/link"
+import { SetDisplayNameDialog } from "@/components/set-display-name-dialog"
 
 export default async function ProfilePage() {
   const supabase = await createClient()
@@ -48,14 +49,17 @@ export default async function ProfilePage() {
         <Card>
           <CardHeader>
             <div className="flex items-start justify-between">
-              <div>
-                <CardTitle>{profile?.display_name || "User"}</CardTitle>
+              <div className="flex-1">
+                <CardTitle>{profile?.display_name || `${profile?.first_name} ${profile?.surname}`}</CardTitle>
                 <CardDescription>{user.email}</CardDescription>
               </div>
-              <Badge variant="outline" className="gap-1">
-                <Shield className="h-3 w-3" />
-                Level {profile?.level || 0}
-              </Badge>
+              <div className="flex flex-col items-end gap-2">
+                <Badge variant="outline" className="gap-1">
+                  <Shield className="h-3 w-3" />
+                  Level {profile?.level || 0}
+                </Badge>
+                <SetDisplayNameDialog currentDisplayName={profile?.display_name || ""} userId={user.id} />
+              </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">

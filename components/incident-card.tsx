@@ -1,5 +1,11 @@
+"use client"
+
+import type React from "react"
+
 import Link from "next/link"
 import { formatTimeAgo, formatRadius } from "@/lib/feed-utils"
+import { useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 
 interface IncidentCardProps {
   incident: {
@@ -24,21 +30,65 @@ const severityColors = {
 }
 
 export function IncidentCard({ incident }: IncidentCardProps) {
+  const [currentImageIndex, setCurrentImageIndex] = useState(0)
+  const hasMultipleImages = (incident.media_urls?.length || 0) > 1
   const imageUrl = incident.media_urls?.[0]
   const severityColor = severityColors[incident.severity as keyof typeof severityColors] || severityColors[1]
+
+  const nextImage = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCurrentImageIndex((prev) => (prev + 1) % (incident.media_urls?.length || 1))
+  }
+
+  const prevImage = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setCurrentImageIndex((prev) => (prev - 1 + (incident.media_urls?.length || 1)) % (incident.media_urls?.length || 1))
+  }
 
   return (
     <Link href={`/incident/${incident.id}`} className="block mb-6">
       <article className="bg-white rounded-xl shadow-sm overflow-hidden cursor-pointer hover:shadow-md transition-shadow">
         {/* Full width image at top */}
-        {imageUrl && (
-          <div className="w-full h-52 bg-gray-100 overflow-hidden">
+        {incident.media_urls && incident.media_urls.length > 0 && (
+          <div className="relative w-full h-52 bg-gray-100 overflow-hidden group">
             <img
-              src={imageUrl || "/placeholder.svg"}
+              src={incident.media_urls[currentImageIndex] || "/placeholder.svg"}
               alt={incident.title}
               className="w-full h-full object-cover"
               loading="lazy"
             />
+
+            {/* Image navigation */}
+            {hasMultipleImages && (
+              <>
+                <button
+                  onClick={prevImage}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <button
+                  onClick={nextImage}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+
+                {/* Image indicators */}
+                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                  {incident.media_urls.map((_, idx) => (
+                    <div
+                      key={idx}
+                      className={`h-1.5 rounded-full transition-all ${
+                        idx === currentImageIndex ? "w-4 bg-white" : "w-1.5 bg-white/50"
+                      }`}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 

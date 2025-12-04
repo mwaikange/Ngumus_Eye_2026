@@ -5,8 +5,9 @@ import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
 import { mergePostsAndAds, type FeedPost, type FeedAd } from "@/lib/feed-utils"
 import { getActiveAds } from "@/lib/actions/ads"
+import { FeedFilters } from "@/components/feed-filters"
 
-async function getFeedData() {
+async function getFeedData(filter: string) {
   const supabase = await createClient()
 
   // Fetch incidents with related data
@@ -78,29 +79,22 @@ async function getFeedData() {
   return mergePostsAndAds(posts, ads)
 }
 
-export default async function FeedPage() {
-  const feedItems = await getFeedData()
+export default async function FeedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ filter?: string }>
+}) {
+  const params = await searchParams
+  const filter = params.filter || "all"
+
+  const feedItems = await getFeedData(filter)
 
   return (
     <div className="min-h-screen bg-[#F2F4F7]">
       <AppHeader title="Community Feed" showSearch />
 
       <main className="max-w-md mx-auto px-3 pb-6 pt-2">
-        {/* Filter tabs */}
-        <div className="flex items-center gap-2 mb-3 overflow-x-auto pb-2">
-          <button className="px-3 py-1.5 rounded-full bg-gray-900 text-white text-xs font-medium whitespace-nowrap">
-            All
-          </button>
-          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
-            Nearby
-          </button>
-          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
-            Verified
-          </button>
-          <button className="px-3 py-1.5 rounded-full bg-gray-200 text-gray-700 text-xs font-medium whitespace-nowrap">
-            Following
-          </button>
-        </div>
+        <FeedFilters currentFilter={filter} />
 
         <div>
           {feedItems.length > 0 ? (

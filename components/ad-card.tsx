@@ -11,7 +11,11 @@ interface AdCardProps {
   }
 }
 
+import { trackAdView } from "@/lib/actions/ads"
+import { useEffect, useRef } from "react"
+
 export function AdCard({ ad }: AdCardProps) {
+  const hasTracked = useRef(false)
   const handleAdClick = () => {
     if (ad.target_url) {
       window.open(ad.target_url, "_blank", "noopener,noreferrer")
@@ -42,6 +46,13 @@ export function AdCard({ ad }: AdCardProps) {
       </div>
     </article>
   )
+
+  useEffect(() => {
+    if (!hasTracked.current) {
+      trackAdView(ad.id)
+      hasTracked.current = true
+    }
+  }, [ad.id])
 
   if (ad.target_url) {
     return (
