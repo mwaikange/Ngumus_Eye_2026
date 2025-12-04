@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateDisplayName } from "@/lib/actions/profile"
 import { useRouter } from "next/navigation"
+import { Loader2, Pencil } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 interface SetDisplayNameDialogProps {
   currentDisplayName: string
@@ -25,22 +27,47 @@ export function SetDisplayNameDialog({ currentDisplayName, userId }: SetDisplayN
   const [displayName, setDisplayName] = useState(currentDisplayName)
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
 
   const handleSubmit = async () => {
+    if (!displayName.trim()) {
+      toast({
+        title: "Error",
+        description: "Display name cannot be empty",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
-    await updateDisplayName(userId, displayName)
+    const result = await updateDisplayName(displayName.trim())
     setIsLoading(false)
-    setOpen(false)
-    router.refresh()
+
+    if (result?.error) {
+      toast({
+        title: "Error",
+        description: result.error,
+        variant: "destructive",
+      })
+    } else {
+      toast({
+        title: "Success",
+        description: "Display name updated successfully",
+      })
+      setOpen(false)
+      router.refresh()
+    }
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm">
+        <Button variant="outline" size="sm" className="w-full bg-transparent gap-2">
+          <Pencil className="h-3.5 w-3.5" />
           {currentDisplayName ? "Edit Display Name" : "Set Display Name"}
         </Button>
       </DialogTrigger>
+      {/* </CHANGE> */}
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Set Display Name</DialogTitle>
@@ -58,10 +85,19 @@ export function SetDisplayNameDialog({ currentDisplayName, userId }: SetDisplayN
               placeholder="Enter your display name"
               maxLength={50}
             />
+            <p className="text-xs text-muted-foreground">{displayName.length}/50 characters</p>
           </div>
           <Button onClick={handleSubmit} disabled={isLoading || !displayName.trim()} className="w-full">
-            {isLoading ? "Saving..." : "Save Display Name"}
+            {isLoading ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Save Display Name"
+            )}
           </Button>
+          {/* </CHANGE> */}
         </div>
       </DialogContent>
     </Dialog>

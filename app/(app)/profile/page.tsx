@@ -58,48 +58,53 @@ export default async function ProfilePage() {
       <div className="container max-w-2xl px-4 py-4 space-y-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="flex items-start gap-4">
-              {/* Avatar with upload */}
-              <div className="relative">
-                <Avatar className="h-20 w-20">
-                  <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} />
-                  <AvatarFallback className="text-2xl bg-primary/10 text-primary">
-                    {profile?.display_name?.charAt(0).toUpperCase() ||
-                      profile?.first_name?.charAt(0).toUpperCase() ||
-                      "U"}
-                  </AvatarFallback>
-                </Avatar>
-                <AvatarUpload />
-              </div>
+            {/* Mobile-first vertical layout */}
+            <div className="flex flex-col space-y-4">
+              {/* Top row: Avatar + Name + Level badge */}
+              <div className="flex items-start gap-4">
+                {/* Avatar with upload */}
+                <div className="relative flex-shrink-0">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} />
+                    <AvatarFallback className="text-2xl bg-primary/10 text-primary">
+                      {profile?.display_name?.charAt(0).toUpperCase() ||
+                        profile?.first_name?.charAt(0).toUpperCase() ||
+                        "U"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <AvatarUpload />
+                </div>
 
-              {/* User info */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h2 className="text-lg font-semibold truncate">
+                {/* Name and level */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <h2 className="text-xl font-bold truncate">
                       {profile?.display_name || `${profile?.first_name} ${profile?.surname}`}
                     </h2>
-                    <p className="text-sm text-muted-foreground truncate">{user.email}</p>
-                    {profile?.phone && <p className="text-sm text-muted-foreground">{profile.phone}</p>}
-                  </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <Badge variant="outline" className="gap-1 whitespace-nowrap">
+                    <Badge variant="outline" className="gap-1 whitespace-nowrap flex-shrink-0">
                       <Shield className="h-3 w-3" />
                       Level {profile?.level || 0}
                     </Badge>
-                    <SetDisplayNameDialog currentDisplayName={profile?.display_name || ""} userId={user.id} />
                   </div>
+                  <p className="text-sm text-muted-foreground truncate mt-1">{user.email}</p>
+                  {profile?.phone && <p className="text-sm text-muted-foreground">{profile.phone}</p>}
                 </div>
+              </div>
 
-                <div className="flex items-center gap-2 mt-2">
-                  <Award className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">Trust Score: {profile?.trust_score || 0}</span>
-                </div>
+              {/* Edit Display Name button - full width on mobile, always visible */}
+              <SetDisplayNameDialog currentDisplayName={profile?.display_name || ""} userId={user.id} />
+
+              {/* Trust Score */}
+              <div className="flex items-center gap-2 pt-2 border-t">
+                <Award className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">Trust Score: {profile?.trust_score || 0}</span>
               </div>
             </div>
           </CardContent>
         </Card>
+        {/* </CHANGE> */}
 
+        {/* Followers/Following Card */}
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center justify-around">

@@ -9,11 +9,22 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { createIncident, uploadIncidentMedia } from "@/lib/actions/incidents"
 import { useRouter } from "next/navigation"
-import { MapPin, AlertCircle, ChevronRight, ChevronLeft, Upload, X, Video, Loader2, CheckCircle } from "lucide-react"
+import {
+  MapPin,
+  AlertCircle,
+  ChevronRight,
+  ChevronLeft,
+  Upload,
+  X,
+  Video,
+  Loader2,
+  CheckCircle,
+  ImageIcon,
+} from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/hooks/use-toast"
 import { Progress } from "@/components/ui/progress"
@@ -25,17 +36,67 @@ interface IncidentType {
   severity: number
 }
 
+interface MediaFile {
+  file: File
+  preview: string
+  compressed?: File
+  status: "pending" | "compressing" | "ready" | "uploading" | "done" | "error"
+  progress: number
+}
+
+async function compressImage(file: File, maxWidth = 1080, quality = 0.7): Promise<File> {
+  if (!file.type.startsWith("image/")) return file
+
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+
+    img.onload = () => {
+      let width = img.width
+      let height = img.height
+
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width
+        width = maxWidth
+      }
+
+      const canvas = document.createElement("canvas")
+      canvas.width = width
+      canvas.height = height
+
+      const ctx = canvas.getContext("2d")
+      ctx?.drawImage(img, 0, 0, width, height)
+
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }))
+          } else {
+            resolve(file)
+          }
+        },
+        "image/jpeg",
+        quality,
+      )
+    }
+
+    img.onerror = () => resolve(file)
+    img.src = URL.createObjectURL(file)
+  })
+}
+
 export default function ReportPage() {
   const [step, setStep] = useState(1)
   const [incidentTypes, setIncidentTypes] = useState<IncidentType[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
-  const [uploadStatus, setUploadStatus] = useState<"idle" | "uploading" | "processing" | "success">("idle")
+  const [uploadStatus, setUploadStatus] = useState<"idle" | "compressing" | "uploading" | "processing" | "success">(
+    "idle",
+  )
   const [error, setError] = useState<string | null>(null)
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationLoading, setLocationLoading] = useState(false)
-  const [mediaFiles, setMediaFiles] = useState<File[]>([])
-  const [mediaPreviews, setMediaPreviews] = useState<string[]>([])
+  const [mediaFiles, setMediaFiles] = useState<MediaFile[]>([])
   const router = useRouter()
   const { toast } = useToast()
 
@@ -57,6 +118,13 @@ export default function ReportPage() {
     }
 
     fetchIncidentTypes()
+  }, [])
+
+  // Cleanup previews on unmount
+  useEffect(() => {
+    return () => {
+      mediaFiles.forEach((mf) => URL.revokeObjectURL(mf.preview))
+    }
   }, [])
 
   const getCurrentLocation = () => {
@@ -85,38 +153,81 @@ export default function ReportPage() {
     )
   }
 
-  const handleMediaChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    const validFiles = files.filter((file) => {
-      const isImage = file.type.startsWith("image/")
-      const isVideo = file.type.startsWith("video/")
-      const isUnder50MB = file.size <= 50 * 1024 * 1024
-      return (isImage || isVideo) && isUnder50MB
-    })
+  const handleMediaChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || [])
 
-    if (validFiles.length !== files.length) {
-      toast({
-        title: "Some files skipped",
-        description: "Only images and videos under 50MB are allowed.",
-        variant: "destructive",
-      })
-    }
+      const newMediaFiles: MediaFile[] = []
 
-    setMediaFiles((prev) => [...prev, ...validFiles])
+      for (const file of files) {
+        const isImage = file.type.startsWith("image/")
+        const isVideo = file.type.startsWith("video/")
 
-    // Create previews
-    validFiles.forEach((file) => {
-      const reader = new FileReader()
-      reader.onloadend = () => {
-        setMediaPreviews((prev) => [...prev, reader.result as string])
+        // Validate
+        if (!isImage && !isVideo) {
+          toast({
+            title: "Invalid file",
+            description: `${file.name} is not a valid image or video`,
+            variant: "destructive",
+          })
+          continue
+        }
+
+        // Check size limits
+        const maxSize = isVideo ? 25 * 1024 * 1024 : 10 * 1024 * 1024
+        if (file.size > maxSize) {
+          toast({
+            title: "File too large",
+            description: `${file.name} exceeds ${isVideo ? "25MB" : "10MB"} limit`,
+            variant: "destructive",
+          })
+          continue
+        }
+
+        // Create fast preview immediately
+        const preview = URL.createObjectURL(file)
+
+        newMediaFiles.push({
+          file,
+          preview,
+          status: isImage ? "compressing" : "ready",
+          progress: 0,
+        })
       }
-      reader.readAsDataURL(file)
-    })
-  }
+
+      setMediaFiles((prev) => [...prev, ...newMediaFiles])
+
+      // Compress images in background
+      for (let i = 0; i < newMediaFiles.length; i++) {
+        const mf = newMediaFiles[i]
+        if (mf.status === "compressing") {
+          try {
+            const compressed = await compressImage(mf.file)
+            setMediaFiles((prev) =>
+              prev.map((p) => (p.preview === mf.preview ? { ...p, compressed, status: "ready" as const } : p)),
+            )
+          } catch (e) {
+            setMediaFiles((prev) =>
+              prev.map((p) => (p.preview === mf.preview ? { ...p, status: "ready" as const } : p)),
+            )
+          }
+        }
+      }
+
+      // Reset input
+      e.target.value = ""
+    },
+    [toast],
+  )
 
   const removeMedia = (index: number) => {
-    setMediaFiles((prev) => prev.filter((_, i) => i !== index))
-    setMediaPreviews((prev) => prev.filter((_, i) => i !== index))
+    setMediaFiles((prev) => {
+      const removed = prev[index]
+      if (removed) {
+        URL.revokeObjectURL(removed.preview)
+      }
+      return prev.filter((_, i) => i !== index)
+    })
   }
 
   const handleSubmit = async () => {
@@ -139,25 +250,39 @@ export default function ReportPage() {
       area_radius_m: Number.parseInt(formData.area_radius_m),
     })
 
-    setUploadProgress(40)
+    setUploadProgress(30)
 
     if (result.error) {
       setError(result.error)
       setIsLoading(false)
       setUploadStatus("idle")
       toast({ title: "Error", description: result.error, variant: "destructive" })
-    } else if (result.data) {
+      return
+    }
+
+    if (result.data) {
       if (mediaFiles.length > 0) {
         setUploadStatus("uploading")
-        setUploadProgress(50)
+        setUploadProgress(40)
 
-        // Simulate progress for media upload
-        const progressInterval = setInterval(() => {
-          setUploadProgress((prev) => Math.min(prev + 10, 90))
-        }, 200)
+        // Get files to upload (use compressed if available)
+        const filesToUpload = mediaFiles.map((mf) => mf.compressed || mf.file)
 
-        await uploadIncidentMedia(result.data.id, mediaFiles)
-        clearInterval(progressInterval)
+        // Simulate per-file progress
+        const progressPerFile = 50 / filesToUpload.length
+
+        for (let i = 0; i < filesToUpload.length; i++) {
+          setMediaFiles((prev) => prev.map((p, idx) => (idx === i ? { ...p, status: "uploading" as const } : p)))
+
+          // Upload one file at a time with progress simulation
+          await uploadIncidentMedia(result.data.id, [filesToUpload[i]])
+
+          setMediaFiles((prev) =>
+            prev.map((p, idx) => (idx === i ? { ...p, status: "done" as const, progress: 100 } : p)),
+          )
+
+          setUploadProgress(40 + (i + 1) * progressPerFile)
+        }
       }
 
       setUploadProgress(100)
@@ -165,17 +290,24 @@ export default function ReportPage() {
 
       toast({ title: "Report submitted!", description: "Your incident has been reported successfully" })
 
-      // Brief delay to show success state before redirect
-      await new Promise((resolve) => setTimeout(resolve, 800))
+      await new Promise((resolve) => setTimeout(resolve, 600))
       router.push(`/incident/${result.data.id}`)
     }
   }
 
   const canProceedStep1 = formData.type_id && location
   const canProceedStep2 = formData.title.trim().length > 0
+  const allFilesReady = mediaFiles.every((mf) => mf.status === "ready" || mf.status === "done")
 
   const getSubmitButtonContent = () => {
     switch (uploadStatus) {
+      case "compressing":
+        return (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Compressing...
+          </>
+        )
       case "processing":
         return (
           <>
@@ -187,14 +319,14 @@ export default function ReportPage() {
         return (
           <>
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-            Uploading media...
+            Uploading {uploadProgress}%
           </>
         )
       case "success":
         return (
           <>
             <CheckCircle className="h-4 w-4 mr-2" />
-            Success! Redirecting...
+            Success!
           </>
         )
       default:
@@ -349,28 +481,55 @@ export default function ReportPage() {
               <div className="space-y-2">
                 <Label>Photos & Videos (Optional)</Label>
                 <div className="space-y-3">
-                  {mediaPreviews.length > 0 && (
+                  {mediaFiles.length > 0 && (
                     <div className="grid grid-cols-3 gap-2">
-                      {mediaPreviews.map((preview, index) => (
+                      {mediaFiles.map((mf, index) => (
                         <div
                           key={index}
                           className="relative aspect-square rounded-lg overflow-hidden bg-muted animate-fade-in"
                         >
-                          {mediaFiles[index].type.startsWith("image/") ? (
+                          {mf.file.type.startsWith("image/") ? (
                             <img
-                              src={preview || "/placeholder.svg"}
+                              src={mf.preview || "/placeholder.svg"}
                               alt={`Preview ${index + 1}`}
                               className="w-full h-full object-cover"
                             />
                           ) : (
-                            <div className="w-full h-full flex items-center justify-center">
+                            <div className="w-full h-full flex items-center justify-center bg-muted">
                               <Video className="h-8 w-8 text-muted-foreground" />
                             </div>
                           )}
+
+                          {/* Status overlay */}
+                          {mf.status === "compressing" && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <div className="text-center text-white">
+                                <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1" />
+                                <span className="text-xs">Compressing</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {mf.status === "uploading" && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                              <div className="text-center text-white">
+                                <Loader2 className="h-5 w-5 animate-spin mx-auto mb-1" />
+                                <span className="text-xs">Uploading</span>
+                              </div>
+                            </div>
+                          )}
+
+                          {mf.status === "done" && (
+                            <div className="absolute top-1 left-1">
+                              <CheckCircle className="h-5 w-5 text-green-500 drop-shadow" />
+                            </div>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => removeMedia(index)}
-                            className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center"
+                            disabled={mf.status === "uploading"}
+                            className="absolute top-1 right-1 h-6 w-6 rounded-full bg-destructive text-destructive-foreground flex items-center justify-center disabled:opacity-50"
                           >
                             <X className="h-4 w-4" />
                           </button>
@@ -378,6 +537,7 @@ export default function ReportPage() {
                       ))}
                     </div>
                   )}
+
                   <div>
                     <input
                       type="file"
@@ -399,8 +559,8 @@ export default function ReportPage() {
                     <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <p className="text-xs font-medium text-blue-900 mb-1">File Requirements:</p>
                       <ul className="text-xs text-blue-700 space-y-0.5">
-                        <li>• Images: JPG, PNG, HEIC (max 50MB each)</li>
-                        <li>• Videos: MP4, MOV (max 50MB each)</li>
+                        <li>• Images: JPG, PNG, HEIC (max 10MB, auto-compressed)</li>
+                        <li>• Videos: MP4, MOV (max 25MB)</li>
                         <li>• Multiple files allowed</li>
                       </ul>
                     </div>
@@ -413,9 +573,18 @@ export default function ReportPage() {
                   <ChevronLeft className="h-4 w-4 mr-2" />
                   Back
                 </Button>
-                <Button className="flex-1" onClick={() => setStep(3)} disabled={!canProceedStep2}>
-                  Continue
-                  <ChevronRight className="h-4 w-4 ml-2" />
+                <Button className="flex-1" onClick={() => setStep(3)} disabled={!canProceedStep2 || !allFilesReady}>
+                  {!allFilesReady ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Preparing...
+                    </>
+                  ) : (
+                    <>
+                      Continue
+                      <ChevronRight className="h-4 w-4 ml-2" />
+                    </>
+                  )}
                 </Button>
               </div>
             </CardContent>
@@ -453,7 +622,10 @@ export default function ReportPage() {
                 {mediaFiles.length > 0 && (
                   <div>
                     <Label className="text-muted-foreground">Media</Label>
-                    <p className="text-sm">{mediaFiles.length} file(s) attached</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <ImageIcon className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm">{mediaFiles.length} file(s) attached</p>
+                    </div>
                   </div>
                 )}
 
