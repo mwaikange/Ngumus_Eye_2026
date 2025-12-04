@@ -1,11 +1,13 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState, useRef } from "react"
 import { createClient as createBrowserClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { Mic, ImageIcon, Video, Loader2, Send } from "lucide-react"
+import { ImageIcon, Loader2, Send } from "lucide-react"
 import { sendGroupMessage } from "@/lib/actions/groups"
 import { formatDistanceToNow } from "date-fns"
 
@@ -21,19 +23,19 @@ interface Message {
     display_name: string
     trust_score: number
   }
+  isOptimistic?: boolean
+  isFailed?: boolean
 }
 
 export function GroupChat({ groupId, userId }: { groupId: string; userId: string }) {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [selectedImage, setSelectedImage] = useState<File | null>(null)
-  const [selectedVideo, setSelectedVideo] = useState<File | null>(null)
-  const [isUploading, setIsUploading] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
+  const [isUploading, setIsUploading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
-  const videoInputRef = useRef<HTMLInputElement>(null)
   const supabase = createBrowserClient()
 
   const scrollToBottom = () => {
@@ -111,61 +113,96 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
     setMessages(messagesWithProfiles)
   }
 
-  async function uploadFile(file: File): Promise<string | null> {
-    try {
-      setIsUploading(true)
-      const formData = new FormData()
-      formData.append("file", file)
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setSelectedImage(file)
+      setImagePreview(URL.createObjectURL(file))
+    }
+    e.target.value = ""
+  }
 
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
+  const clearImage = () => {
+    if (imagePreview) URL.revokeObjectURL(imagePreview)
+    setSelectedImage(null)
+    setImagePreview(null)
+  }
+
+  async function handleSend() {
+    if (!newMessage.trim() && !selectedImage) return
+
+    const messageText = newMessage.trim()
+    const imageToUpload = selectedImage
+    const previewUrl = imagePreview
+
+    // Create optimistic message
+    const optimisticId = `temp-${Date.now()}`
+    const optimisticMessage: Message = {
+      id: optimisticId,
+      message: messageText || null,
+      image_url: previewUrl,
+      video_url: null,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      user_id: userId,
+      profiles: { display_name: "You", trust_score: 0 },
+      isOptimistic: true,
+    }
+
+    // Immediately add to UI
+    setMessages((prev) => [...prev, optimisticMessage])
+    setNewMessage("")
+    clearImage()
+    setIsSending(true)
+
+    try {
+      let imageUrl = null
+
+      // Upload image if present
+      if (imageToUpload) {
+        setIsUploading(true)
+        const formData = new FormData()
+        formData.append("file", imageToUpload)
+
+        const response = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        })
+
+        if (!response.ok) throw new Error("Upload failed")
+        const { url } = await response.json()
+        imageUrl = url
+        setIsUploading(false)
+      }
+
+      // Send message
+      const result = await sendGroupMessage({
+        groupId,
+        message: messageText || undefined,
+        imageUrl: imageUrl || undefined,
       })
 
-      if (!response.ok) throw new Error("Upload failed")
+      if (result.error) {
+        throw new Error(result.error)
+      }
 
-      const { url } = await response.json()
-      return url
+      // Remove optimistic message (real one will come via realtime)
+      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
     } catch (error) {
-      console.error("[v0] Upload error:", error)
-      return null
+      // Mark as failed
+      setMessages((prev) =>
+        prev.map((m) => (m.id === optimisticId ? { ...m, isFailed: true, isOptimistic: false } : m)),
+      )
     } finally {
+      setIsSending(false)
       setIsUploading(false)
     }
   }
 
-  async function handleSend() {
-    if (!newMessage.trim() && !selectedImage && !selectedVideo) return
-
-    setIsSending(true)
-    setIsLoading(true)
-
-    let imageUrl = null
-    let videoUrl = null
-
-    if (selectedImage) imageUrl = await uploadFile(selectedImage)
-    if (selectedVideo) videoUrl = await uploadFile(selectedVideo)
-
-    const result = await sendGroupMessage({
-      groupId,
-      message: newMessage.trim() || undefined,
-      imageUrl: imageUrl || undefined,
-      videoUrl: videoUrl || undefined,
-    })
-
-    if (!result.error) {
-      setNewMessage("")
-      setSelectedImage(null)
-      setSelectedVideo(null)
-    }
-
-    setIsLoading(false)
-    setIsSending(false)
-  }
-
   return (
     <div className="flex flex-col h-[calc(100vh-20rem)] bg-white/50 backdrop-blur-sm rounded-3xl overflow-hidden shadow-lg border border-white/60">
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+      {/* Messages area */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-4">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
@@ -191,51 +228,51 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
             return (
               <div key={msg.id} className={`flex gap-2 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
                 {showAvatar ? (
-                  <Avatar className="h-10 w-10 flex-shrink-0 shadow-sm border-2 border-white">
+                  <Avatar className="h-8 w-8 flex-shrink-0 shadow-sm border-2 border-white">
                     <AvatarFallback className="text-sm bg-primary/20 text-primary font-semibold">
                       {msg.profiles.display_name?.charAt(0).toUpperCase() || "?"}
                     </AvatarFallback>
                   </Avatar>
                 ) : (
-                  <div className="h-10 w-10 flex-shrink-0" />
+                  <div className="h-8 w-8 flex-shrink-0" />
                 )}
 
-                <div className={`flex flex-col gap-1.5 max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
+                <div className={`flex flex-col gap-1 max-w-[75%] ${isOwn ? "items-end" : "items-start"}`}>
                   <div
-                    className={`rounded-3xl px-4 py-3 ${
+                    className={`rounded-2xl px-4 py-2 ${
                       isOwn ? "chat-bubble-sent text-white shadow-md" : "chat-bubble-received text-foreground shadow-sm"
-                    } ${!msg.message && (msg.image_url || msg.video_url) ? "p-1" : ""}`}
+                    } ${msg.isOptimistic ? "opacity-70" : ""} ${msg.isFailed ? "border-2 border-red-500" : ""}`}
                   >
                     {msg.message && (
-                      <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">{msg.message}</p>
                     )}
                     {msg.image_url && (
                       <img
                         src={msg.image_url || "/placeholder.svg"}
                         alt="Shared image"
-                        className={`${msg.message ? "mt-2" : ""} rounded-2xl max-w-[280px] w-full object-cover`}
-                      />
-                    )}
-                    {msg.video_url && (
-                      <video
-                        src={msg.video_url}
-                        controls
-                        className={`${msg.message ? "mt-2" : ""} rounded-2xl max-w-[280px] w-full`}
-                        playsInline
+                        className={`${msg.message ? "mt-2" : ""} rounded-xl max-w-[240px] w-full object-cover`}
                       />
                     )}
                   </div>
 
                   <div className={`flex items-center gap-2 px-1 ${isOwn ? "flex-row-reverse" : "flex-row"}`}>
-                    <span className="text-[11px] text-muted-foreground/70 font-medium">
-                      {formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })}
+                    <span className="text-[10px] text-muted-foreground/70">
+                      {msg.isOptimistic ? (
+                        <span className="text-primary">Sending...</span>
+                      ) : msg.isFailed ? (
+                        <span className="text-red-500">Failed</span>
+                      ) : (
+                        formatDistanceToNow(new Date(msg.created_at), { addSuffix: true })
+                      )}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className="text-[10px] px-2 py-0.5 h-5 bg-accent/20 text-accent-foreground border-accent/40 font-semibold"
-                    >
-                      Trust {msg.profiles.trust_score}
-                    </Badge>
+                    {!msg.isOptimistic && (
+                      <Badge
+                        variant="outline"
+                        className="text-[9px] px-1.5 py-0 h-4 bg-accent/20 text-accent-foreground border-accent/40"
+                      >
+                        Trust {msg.profiles.trust_score}
+                      </Badge>
+                    )}
                   </div>
                 </div>
               </div>
@@ -245,61 +282,36 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="border-t border-border/30 bg-white/90 backdrop-blur-sm p-3 safe-bottom">
-        {(selectedImage || selectedVideo) && (
-          <div className="mb-2 flex items-center gap-2 p-2.5 bg-muted/30 rounded-2xl">
-            {selectedImage && (
-              <div className="flex items-center gap-2 flex-1">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <ImageIcon className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-sm truncate font-medium">{selectedImage.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 rounded-full hover:bg-destructive/10"
-                  onClick={() => setSelectedImage(null)}
-                >
-                  <span className="text-lg text-destructive">×</span>
-                </Button>
-              </div>
-            )}
-            {selectedVideo && (
-              <div className="flex items-center gap-2 flex-1">
-                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Video className="h-5 w-5 text-primary" />
-                </div>
-                <span className="text-sm truncate font-medium">{selectedVideo.name}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 w-7 p-0 rounded-full hover:bg-destructive/10"
-                  onClick={() => setSelectedVideo(null)}
-                >
-                  <span className="text-lg text-destructive">×</span>
-                </Button>
-              </div>
-            )}
+      <div className="border-t border-border/30 bg-white/95 backdrop-blur-sm p-3 safe-bottom">
+        {/* Image preview */}
+        {imagePreview && (
+          <div className="mb-2 relative inline-block">
+            <img src={imagePreview || "/placeholder.svg"} alt="Preview" className="h-16 w-16 object-cover rounded-xl" />
+            <button
+              onClick={clearImage}
+              className="absolute -top-1 -right-1 h-5 w-5 bg-destructive text-white rounded-full flex items-center justify-center text-xs"
+            >
+              ×
+            </button>
           </div>
         )}
 
         <div className="flex items-center gap-2">
-          <input
-            ref={imageInputRef}
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => setSelectedImage(e.target.files?.[0] || null)}
-          />
-          <input
-            ref={videoInputRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={(e) => setSelectedVideo(e.target.files?.[0] || null)}
-          />
+          <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={handleImageSelect} />
 
-          <div className="flex-1 flex items-center gap-2 bg-muted/40 rounded-full px-5 py-3 border border-border/40 shadow-sm">
+          {/* Camera/Image button */}
+          <Button
+            size="icon"
+            variant="ghost"
+            className="h-10 w-10 rounded-full hover:bg-primary/10 flex-shrink-0"
+            onClick={() => imageInputRef.current?.click()}
+            disabled={isSending}
+          >
+            <ImageIcon className="h-5 w-5 text-muted-foreground" />
+          </Button>
+
+          {/* Message input */}
+          <div className="flex-1 bg-muted/40 rounded-full px-4 py-2.5 border border-border/40">
             <input
               type="text"
               placeholder="Message"
@@ -311,60 +323,24 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
                   handleSend()
                 }
               }}
-              className="flex-1 bg-transparent outline-none text-[15px] placeholder:text-muted-foreground/60"
-              disabled={isLoading || isUploading || isSending}
+              className="w-full bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+              disabled={isSending}
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-11 w-11 rounded-full hover:bg-primary/10 transition-colors flex-shrink-0"
-              onClick={() => {
-                /* Voice recording placeholder */
-              }}
-              disabled={isLoading || isUploading || isSending}
-              title="Record voice message"
-            >
-              <Mic className="h-5 w-5 text-muted-foreground" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-11 w-11 rounded-full hover:bg-primary/10 transition-colors flex-shrink-0"
-              onClick={() => imageInputRef.current?.click()}
-              disabled={isLoading || isUploading || isSending || !!selectedVideo}
-              title="Send photo"
-            >
-              <ImageIcon className="h-5 w-5 text-muted-foreground" />
-            </Button>
-            <Button
-              size="icon"
-              variant="ghost"
-              className="h-11 w-11 rounded-full hover:bg-primary/10 transition-colors flex-shrink-0"
-              onClick={() => videoInputRef.current?.click()}
-              disabled={isLoading || isUploading || isSending || !!selectedImage}
-              title="Send video"
-            >
-              <Video className="h-5 w-5 text-muted-foreground" />
-            </Button>
-            <Button
-              size="icon"
-              className="h-12 w-12 rounded-full chat-bubble-sent shadow-lg flex-shrink-0 hover:shadow-xl transition-all active:scale-95"
-              onClick={handleSend}
-              disabled={
-                isLoading || isUploading || isSending || (!newMessage.trim() && !selectedImage && !selectedVideo)
-              }
-              title="Send message"
-            >
-              {isSending || isLoading || isUploading ? (
-                <Loader2 className="h-5 w-5 animate-spin text-white" />
-              ) : (
-                <Send className="h-5 w-5 text-white" />
-              )}
-            </Button>
-          </div>
+          {/* Send button */}
+          <Button
+            size="icon"
+            className="h-10 w-10 rounded-full chat-bubble-sent shadow-md flex-shrink-0 transition-all active:scale-95"
+            onClick={handleSend}
+            disabled={isSending || (!newMessage.trim() && !selectedImage)}
+          >
+            {isSending || isUploading ? (
+              <Loader2 className="h-4 w-4 animate-spin text-white" />
+            ) : (
+              <Send className="h-4 w-4 text-white" />
+            )}
+          </Button>
         </div>
       </div>
     </div>

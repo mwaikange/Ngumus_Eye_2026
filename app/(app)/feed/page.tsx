@@ -37,7 +37,7 @@ async function getFeedData(filter: string, userId?: string) {
       query = query.in("created_by", followingIds)
     } else {
       // Return empty if not following anyone
-      return []
+      return { posts: [], ads: [] }
     }
   }
 
@@ -86,6 +86,7 @@ async function getFeedData(filter: string, userId?: string) {
             }
           : undefined,
         is_following: row.profiles ? followingSet.has(row.profiles.id) : false,
+        currentUserId: userId,
       }
     }) ?? []
 
@@ -101,8 +102,7 @@ async function getFeedData(filter: string, userId?: string) {
       target_url: ad.target_url,
     })) ?? []
 
-  // Merge with random ad insertion
-  return mergePostsAndAds(posts, ads)
+  return { posts, ads }
 }
 
 export default async function FeedPage({
@@ -118,7 +118,9 @@ export default async function FeedPage({
     data: { user },
   } = await supabase.auth.getUser()
 
-  const feedItems = await getFeedData(filter, user?.id)
+  const { posts, ads } = await getFeedData(filter, user?.id)
+
+  const feedItems = mergePostsAndAds(posts, ads)
 
   const isFollowingEmpty = filter === "following" && feedItems.length === 0
 

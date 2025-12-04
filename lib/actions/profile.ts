@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
+import { put } from "@vercel/blob"
 
 export async function updateDisplayName(displayName: string) {
   const supabase = await createClient()
@@ -58,7 +59,7 @@ export async function followUser(userId: string) {
   }
 
   if (user.id === userId) {
-    return { error: "Cannot follow yourself" }
+    return { error: "You cannot follow yourself" }
   }
 
   const { error } = await supabase.from("user_follows").insert({
@@ -73,7 +74,17 @@ export async function followUser(userId: string) {
     return { error: error.message }
   }
 
+  await supabase.from("notifications").insert({
+    user_id: userId,
+    type: "new_follower",
+    metadata: {
+      follower_id: user.id,
+    },
+    is_read: false,
+  })
+
   revalidatePath("/feed")
+  revalidatePath("/profile")
   return { success: true, message: "You're now following this user" }
 }
 
@@ -95,6 +106,7 @@ export async function unfollowUser(userId: string) {
   }
 
   revalidatePath("/feed")
+  revalidatePath("/profile")
   return { success: true, message: "Unfollowed user" }
 }
 
@@ -128,29 +140,26 @@ export async function uploadAvatar(formData: FormData) {
     return { error: "No file provided" }
   }
 
-  const fileExt = file.name.split(".").pop()
-  const fileName = `${user.id}-${Date.now()}.${fileExt}`
+  try {
+    // Use Vercel Blob for uploads
+    const blob = await put(`avatars/${user.id}-${Date.now()}.jpg`, file, {
+      access: "public",
+    })
 
-  const { error: uploadError } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true })
+    // Update profile with the Blob URL
+    const { error: updateError } = await supabase.from("profiles").update({ avatar_url: blob.url }).eq("id", user.id)
 
-  if (uploadError) {
-    return { error: uploadError.message }
+    if (updateError) {
+      return { error: updateError.message }
+    }
+
+    revalidatePath("/profile")
+    revalidatePath("/feed")
+    return { success: true, url: blob.url }
+  } catch (error) {
+    console.error("[v0] Avatar upload error:", error)
+    return { error: "Upload failed. Please try again." }
   }
-
-  const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(fileName)
-
-  const { error: updateError } = await supabase
-    .from("profiles")
-    .update({ avatar_url: urlData.publicUrl })
-    .eq("id", user.id)
-
-  if (updateError) {
-    return { error: updateError.message }
-  }
-
-  revalidatePath("/profile")
-  revalidatePath("/feed")
-  return { success: true, url: urlData.publicUrl }
 }
 
 export async function getFollowersList(userId: string) {

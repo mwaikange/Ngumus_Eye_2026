@@ -27,6 +27,7 @@ interface IncidentCardProps {
       avatar_url?: string
     }
     is_following?: boolean
+    currentUserId?: string
   }
   onFollow?: (userId: string) => void
 }
@@ -51,6 +52,8 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
 
   const hasMultipleImages = (incident.media_urls?.length || 0) > 1
   const severityColor = severityColors[incident.severity as keyof typeof severityColors] || severityColors[1]
+
+  const isOwnPost = incident.currentUserId && incident.reporter?.id === incident.currentUserId
 
   const nextImage = (e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault()
@@ -95,7 +98,7 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
   const handleFollow = async (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!incident.reporter?.id || followLoading) return
+    if (!incident.reporter?.id || followLoading || isOwnPost) return
 
     const previousState = isFollowing
     setIsFollowing(!isFollowing)
@@ -112,11 +115,11 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
         toast({ title: "Following", description: `You are now following ${incident.reporter.display_name}` })
       }
       if (onFollow) onFollow(incident.reporter.id)
-    } catch (error) {
+    } catch (error: any) {
       setIsFollowing(previousState)
       toast({
         title: "Error",
-        description: "Failed to update follow status. Please try again.",
+        description: error.message || "Failed to update follow status",
         variant: "destructive",
       })
     } finally {
@@ -195,34 +198,38 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Avatar className="h-7 w-7">
-                <AvatarImage src={incident.reporter.avatar_url || "/placeholder.svg"} />
+                <AvatarImage src={incident.reporter.avatar_url || undefined} />
                 <AvatarFallback className="text-xs bg-primary/10 text-primary">
                   {incident.reporter.display_name?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
               <span className="text-xs text-gray-600">{incident.reporter.display_name}</span>
             </div>
-            <Button
-              variant={isFollowing ? "secondary" : "outline"}
-              size="sm"
-              className="h-7 text-xs px-2 min-w-[80px] transition-all duration-200"
-              onClick={handleFollow}
-              disabled={followLoading}
-            >
-              {followLoading ? (
-                <Loader2 className="h-3 w-3 animate-spin" />
-              ) : isFollowing ? (
-                <>
-                  <UserCheck className="h-3 w-3 mr-1" />
-                  Following
-                </>
-              ) : (
-                <>
-                  <UserPlus className="h-3 w-3 mr-1" />
-                  Follow
-                </>
-              )}
-            </Button>
+
+            {/* Don't show follow button on own posts */}
+            {!isOwnPost && (
+              <Button
+                variant={isFollowing ? "secondary" : "outline"}
+                size="sm"
+                className="h-7 text-xs px-2 min-w-[80px] transition-all duration-200"
+                onClick={handleFollow}
+                disabled={followLoading}
+              >
+                {followLoading ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : isFollowing ? (
+                  <>
+                    <UserCheck className="h-3 w-3 mr-1" />
+                    Following
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="h-3 w-3 mr-1" />
+                    Follow
+                  </>
+                )}
+              </Button>
+            )}
           </div>
         </div>
       )}

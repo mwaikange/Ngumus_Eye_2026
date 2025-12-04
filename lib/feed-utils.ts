@@ -8,6 +8,12 @@ export type FeedPost = {
   verification_level: number | null
   media_urls: string[]
   severity: number
+  reporter?: {
+    id: string
+    display_name: string
+    avatar_url?: string
+  }
+  is_following?: boolean
 }
 
 export type FeedAd = {
@@ -22,31 +28,32 @@ export type FeedAd = {
 
 export type FeedItem = (FeedPost & { type: "post" }) | FeedAd
 
-function getRandomInt(min: number, max: number) {
-  const mn = Math.ceil(min)
-  const mx = Math.floor(max)
-  return Math.floor(Math.random() * (mx - mn + 1)) + mn
-}
-
 /**
- * Merge posts and ads with random insertion algorithm
- * Inserts ads after 3 posts initially, then randomly after 3-7 posts
+ * Fixed ad placement algorithm - now inserts after post #1, then every 4 posts
+ * Also uses backfill if we run out of ads
  */
 export function mergePostsAndAds(posts: FeedPost[], ads: FeedAd[]): FeedItem[] {
   const result: FeedItem[] = []
   let postCounter = 0
-  let nextInsertPoint = 3 // First ad after 3 posts
-  const adQueue = [...ads]
+  let adIndex = 0
+
+  // First ad after post #1, subsequent ads after every 4 posts
+  const firstAdAfter = 1
+  const adInterval = 4
 
   for (const post of posts) {
     result.push({ ...post, type: "post" as const })
     postCounter++
 
-    if (postCounter >= nextInsertPoint && adQueue.length > 0) {
-      const ad = adQueue.shift()!
+    // Determine if we should insert an ad
+    const shouldInsertAd =
+      postCounter === firstAdAfter || (postCounter > firstAdAfter && (postCounter - firstAdAfter) % adInterval === 0)
+
+    if (shouldInsertAd && ads.length > 0) {
+      // Use the next ad, or backfill with oldest active ad (cycle through)
+      const ad = ads[adIndex % ads.length]
       result.push(ad)
-      postCounter = 0
-      nextInsertPoint = getRandomInt(3, 7) // Random interval for next ad
+      adIndex++
     }
   }
 

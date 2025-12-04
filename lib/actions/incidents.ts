@@ -160,7 +160,7 @@ export async function toggleReaction(incidentId: string, kind: "upvote" | "downv
   }
 }
 
-export async function addComment(incidentId: string, body: string) {
+export async function addComment(incidentId: string, body: string, imageUrl?: string | null) {
   const supabase = await createClient()
 
   const {
@@ -171,14 +171,21 @@ export async function addComment(incidentId: string, body: string) {
     return { error: "Not authenticated" }
   }
 
+  const insertData: any = {
+    incident_id: incidentId,
+    author: user.id,
+    body,
+  }
+
+  // Add image_url if provided
+  if (imageUrl) {
+    insertData.image_url = imageUrl
+  }
+
   const { data: comment, error } = await supabase
     .from("comments")
-    .insert({
-      incident_id: incidentId,
-      author: user.id,
-      body,
-    })
-    .select("id, body, created_at, author")
+    .insert(insertData)
+    .select("id, body, created_at, author, image_url")
     .single()
 
   if (error) {
@@ -186,11 +193,15 @@ export async function addComment(incidentId: string, body: string) {
     return { error: error.message }
   }
 
-  const { data: profile } = await supabase.from("profiles").select("display_name").eq("id", user.id).maybeSingle()
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("display_name, avatar_url")
+    .eq("id", user.id)
+    .maybeSingle()
 
   const result = {
     ...comment,
-    profiles: profile || { display_name: "Anonymous" },
+    profiles: profile || { display_name: "Anonymous", avatar_url: null },
   }
 
   revalidatePath(`/incident/${incidentId}`)

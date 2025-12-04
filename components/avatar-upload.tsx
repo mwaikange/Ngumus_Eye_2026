@@ -31,7 +31,7 @@ async function compressImage(file: File, maxWidth = 400, quality = 0.8): Promise
       canvas.toBlob(
         (blob) => {
           if (blob) {
-            resolve(new File([blob], file.name, { type: "image/jpeg" }))
+            resolve(new File([blob], file.name.replace(/\.[^.]+$/, ".jpg"), { type: "image/jpeg" }))
           } else {
             resolve(file)
           }
@@ -104,6 +104,8 @@ export function AvatarUpload() {
           title: "Avatar updated",
           description: "Your profile picture has been updated",
         })
+        // Reload page to show new avatar
+        window.location.reload()
       }
 
       // Reset after brief delay
