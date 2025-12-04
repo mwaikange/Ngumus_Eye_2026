@@ -7,16 +7,16 @@ export async function getActiveAds() {
 
   const { data: ads, error } = await supabase
     .from("ad_inventory")
-    .select("id, title, description, media_url, media_type, target_url, display_priority")
-    .eq("is_active", true)
-    .lte("start_date", new Date().toISOString())
-    .gte("end_date", new Date().toISOString())
+    .select("id, title, description, media_url, media_type, target_url, display_priority, company")
+    .eq("status", "active") // Changed from is_active to status
     .order("display_priority", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(10)
 
+  console.log("[v0] Fetched ads:", ads?.length, "ads")
+
   if (error) {
-    console.error("Error fetching ads:", error)
+    console.error("[v0] Error fetching ads:", error)
     return []
   }
 
