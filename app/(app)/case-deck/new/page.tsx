@@ -37,6 +37,8 @@ export default function NewCasePage() {
   const [vehiclePlate, setVehiclePlate] = useState("")
   const [serialNumbers, setSerialNumbers] = useState("")
   const [stolenItemRef, setStolenItemRef] = useState("")
+  const [locationAddress, setLocationAddress] = useState("")
+  const [town, setTown] = useState("")
 
   const [images, setImages] = useState<File[]>([])
   const [documents, setDocuments] = useState<File[]>([])
@@ -106,6 +108,16 @@ export default function NewCasePage() {
     formData.set("vehicle_plate", vehiclePlate)
     formData.set("serial_numbers", serialNumbers)
     formData.set("stolen_item_ref", stolenItemRef)
+    formData.set("location_address", locationAddress)
+    formData.set("town", town)
+
+    images.forEach((image) => {
+      formData.append("images", image)
+    })
+
+    documents.forEach((doc) => {
+      formData.append("documents", doc)
+    })
 
     const result = await createCase(formData)
 
@@ -122,7 +134,7 @@ export default function NewCasePage() {
 
     toast({
       title: "Case Created",
-      description: `Case ${result.case?.case_number || ""} created successfully!`,
+      description: `Case ${result.case_number || ""} created successfully!`,
     })
 
     router.push(`/case-deck/${result.case?.id}`)
@@ -171,6 +183,30 @@ export default function NewCasePage() {
                   name="description"
                   placeholder="Provide as much detail as possible..."
                   rows={4}
+                  required
+                />
+              </div>
+
+              {/* Location Address */}
+              <div className="space-y-2">
+                <Label htmlFor="location_address">Location Address *</Label>
+                <Input
+                  id="location_address"
+                  value={locationAddress}
+                  onChange={(e) => setLocationAddress(e.target.value)}
+                  placeholder="e.g. 123 Main Street, Windhoek"
+                  required
+                />
+              </div>
+
+              {/* Town */}
+              <div className="space-y-2">
+                <Label htmlFor="town">Town/City *</Label>
+                <Input
+                  id="town"
+                  value={town}
+                  onChange={(e) => setTown(e.target.value)}
+                  placeholder="e.g. Windhoek, Swakopmund, Walvis Bay"
                   required
                 />
               </div>

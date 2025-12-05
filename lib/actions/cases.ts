@@ -40,6 +40,8 @@ export async function createCase(formData: FormData) {
     return { error: "Not authenticated" }
   }
 
+  const { data: profile } = await supabase.from("profiles").select("full_name, phone, email").eq("id", user.id).single()
+
   const category = formData.get("category") as string
   const title = formData.get("title") as string
   const description = formData.get("description") as string
@@ -48,18 +50,20 @@ export async function createCase(formData: FormData) {
   const vehiclePlate = formData.get("vehicle_plate") as string
   const serialNumbers = formData.get("serial_numbers") as string
   const stolenItemRef = formData.get("stolen_item_ref") as string
-
-  const serial_number = crypto.randomUUID()
+  const locationAddress = formData.get("location_address") as string
+  const town = formData.get("town") as string
 
   const year = new Date().getFullYear()
-  const { data: sequenceData } = await supabase.rpc("get_next_case_number")
-  const case_number = `CASE-${year}-${String(sequenceData || 1).padStart(6, "0")}`
+  const randomNum = Math.floor(Math.random() * 1000000)
+    .toString()
+    .padStart(6, "0")
+  const case_number = `CASE-${year}-${randomNum}`
 
   const { data: newCase, error } = await supabase
     .from("cases")
     .insert({
       user_id: user.id,
-      serial_number: serial_number, // REQUIRED field for CRM portal
+      serial_number: case_number,
       case_number: case_number,
       category: category,
       title,
@@ -70,6 +74,14 @@ export async function createCase(formData: FormData) {
       vehicle_number_plate: vehiclePlate || null,
       serial_numbers: serialNumbers ? serialNumbers.split("\n").filter(Boolean) : [],
       stolen_item_reference: stolenItemRef || null,
+      reporter_name: profile?.full_name || "Unknown",
+      reporter_phone: profile?.phone || null,
+      reporter_email: profile?.email || user.email || null,
+      location_address: locationAddress || null,
+      town: town || null,
+      evidence: [],
+      documents: [],
+      files: [],
     })
     .select()
     .single()
@@ -87,14 +99,14 @@ export async function createCase(formData: FormData) {
           access: "public",
         })
 
-        await supabase.from("case_evidence").insert({
-          case_id: newCase.id, // Proper case_id linking
+        await addEvidenceToCase(newCase.id, {
+          id: crypto.randomUUID(),
           file_url: blob.url,
           file_name: image.name,
           file_type: image.type,
           file_size: image.size,
           description: "Incident evidence photo",
-          uploaded_by: user.id, // Proper uploaded_by field
+          uploaded_at: new Date().toISOString(),
         })
       } catch (err) {
         console.error("[v0] Error uploading evidence:", err)
@@ -110,13 +122,13 @@ export async function createCase(formData: FormData) {
           access: "public",
         })
 
-        await supabase.from("case_documents").insert({
-          case_id: newCase.id, // Proper case_id linking
+        await addDocumentToCase(newCase.id, {
+          id: crypto.randomUUID(),
           file_url: blob.url,
           file_name: doc.name,
           file_type: doc.type,
           file_size_bytes: doc.size,
-          uploaded_by: user.id, // Proper uploaded_by field
+          uploaded_at: new Date().toISOString(),
         })
       } catch (err) {
         console.error("[v0] Error uploading document:", err)
@@ -126,7 +138,27 @@ export async function createCase(formData: FormData) {
 
   revalidatePath("/case-deck")
 
-  return { success: true, case: newCase, message: "Case created successfully!" }
+  return { success: true, case: newCase, case_number: newCase.case_number, message: "Case created successfully!" }
+}
+
+async function addEvidenceToCase(caseId: string, evidence: any) {
+  const supabase = await createClient()
+
+  const { data: currentCase } = await supabase.from("cases").select("evidence").eq("id", caseId).single()
+
+  const updatedEvidence = [...(currentCase?.evidence || []), evidence]
+
+  await supabase.from("cases").update({ evidence: updatedEvidence }).eq("id", caseId)
+}
+
+async function addDocumentToCase(caseId: string, document: any) {
+  const supabase = await createClient()
+
+  const { data: currentCase } = await supabase.from("cases").select("documents").eq("id", caseId).single()
+
+  const updatedDocuments = [...(currentCase?.documents || []), document]
+
+  await supabase.from("cases").update({ documents: updatedDocuments }).eq("id", caseId)
 }
 
 export async function getCaseDetails(caseId: string) {
@@ -152,25 +184,12 @@ export async function getCaseDetails(caseId: string) {
     return { error: caseError.message }
   }
 
-  const { data: evidence } = await supabase
-    .from("case_evidence")
-    .select("*")
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: false })
-
-  const { data: documents } = await supabase
-    .from("case_documents")
-    .select("*")
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: false })
-
-  const { data: files } = await supabase
-    .from("case_files")
-    .select("*")
-    .eq("case_id", caseId)
-    .order("created_at", { ascending: false })
-
-  return { case: caseData, evidence, documents, files }
+  return {
+    case: caseData,
+    evidence: caseData.evidence || [],
+    documents: caseData.documents || [],
+    files: caseData.files || [],
+  }
 }
 
 export async function uploadCaseFile(caseId: string, file: File, fileType: "evidence" | "document" | "file") {
@@ -190,48 +209,39 @@ export async function uploadCaseFile(caseId: string, file: File, fileType: "evid
     })
 
     if (fileType === "evidence") {
-      const { error } = await supabase.from("case_evidence").insert({
-        case_id: caseId,
+      await addEvidenceToCase(caseId, {
+        id: crypto.randomUUID(),
         file_url: blob.url,
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
         description: "Evidence photo/video",
-        uploaded_by: user.id,
+        uploaded_at: new Date().toISOString(),
       })
-
-      if (error) {
-        console.error("[v0] Error uploading evidence:", error)
-        return { error: error.message }
-      }
     } else if (fileType === "document") {
-      const { error } = await supabase.from("case_documents").insert({
-        case_id: caseId,
+      await addDocumentToCase(caseId, {
+        id: crypto.randomUUID(),
         file_url: blob.url,
         file_name: file.name,
         file_type: file.type,
         file_size_bytes: file.size,
-        uploaded_by: user.id,
+        uploaded_at: new Date().toISOString(),
       })
-
-      if (error) {
-        console.error("[v0] Error uploading document:", error)
-        return { error: error.message }
-      }
     } else {
-      const { error } = await supabase.from("case_files").insert({
-        case_id: caseId,
-        file_path: blob.url,
+      const { data: currentCase } = await supabase.from("cases").select("files").eq("id", caseId).single()
+
+      const newFile = {
+        id: crypto.randomUUID(),
+        file_url: blob.url,
         file_name: file.name,
         file_type: file.type,
         file_size: file.size,
-        uploaded_by: user.id,
-      })
-
-      if (error) {
-        console.error("[v0] Error uploading file:", error)
-        return { error: error.message }
+        uploaded_at: new Date().toISOString(),
       }
+
+      const updatedFiles = [...(currentCase?.files || []), newFile]
+
+      await supabase.from("cases").update({ files: updatedFiles }).eq("id", caseId)
     }
 
     revalidatePath(`/case-deck/${caseId}`)
@@ -260,20 +270,15 @@ export async function uploadCaseEvidence(caseId: string, formData: FormData) {
   const fileSize = formData.get("fileSize") as string
   const description = formData.get("description") as string
 
-  const { error } = await supabase.from("case_evidence").insert({
-    case_id: caseId,
+  await addEvidenceToCase(caseId, {
+    id: crypto.randomUUID(),
     file_url: fileUrl,
     file_type: fileType,
     file_name: fileName,
     file_size: fileSize ? Number.parseInt(fileSize) : null,
     description: description || "Case evidence",
-    uploaded_by: user.id,
+    uploaded_at: new Date().toISOString(),
   })
-
-  if (error) {
-    console.error("[v0] Error uploading evidence:", error)
-    return { error: error.message }
-  }
 
   revalidatePath(`/case-deck/${caseId}`)
 
