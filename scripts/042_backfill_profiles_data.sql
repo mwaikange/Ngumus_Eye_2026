@@ -1,8 +1,8 @@
 -- Backfill missing data in profiles table
 -- This script populates full_name, email, phone, and display_name from existing data sources
 
--- Pull full_name from auth.users display_name first
--- 1. Update full_name from auth.users metadata where available
+-- Removed fallback to profiles.display_name - full_name only comes from auth.users
+-- 1. Update full_name from auth.users metadata where available (IMMUTABLE - never changes after this)
 UPDATE profiles p
 SET full_name = u.raw_user_meta_data ->> 'display_name'
 FROM auth.users u
@@ -10,12 +10,7 @@ WHERE p.id = u.id
   AND p.full_name IS NULL 
   AND u.raw_user_meta_data ->> 'display_name' IS NOT NULL;
 
--- 2. Fallback: Update full_name from profiles.display_name where full_name is still null
-UPDATE profiles
-SET full_name = display_name
-WHERE full_name IS NULL AND display_name IS NOT NULL;
-
--- 3. Update email from auth.users table where email is null
+-- 2. Update email from auth.users table where email is null
 UPDATE profiles p
 SET email = u.email
 FROM auth.users u
@@ -23,7 +18,7 @@ WHERE p.id = u.id
   AND p.email IS NULL 
   AND u.email IS NOT NULL;
 
--- 4. Update phone from auth.users metadata where phone is null
+-- 3. Update phone from auth.users metadata where phone is null
 UPDATE profiles p
 SET phone = u.raw_user_meta_data ->> 'phone'
 FROM auth.users u
@@ -31,23 +26,23 @@ WHERE p.id = u.id
   AND p.phone IS NULL 
   AND u.raw_user_meta_data ->> 'phone' IS NOT NULL;
 
--- Set display_name to full_name if not set (per user requirement)
--- 5. Set display_name equal to full_name where display_name is null
+-- display_name defaults to full_name ONLY when NULL (user can customize it later)
+-- 4. Set display_name equal to full_name where display_name is null
 UPDATE profiles
 SET display_name = full_name
 WHERE display_name IS NULL AND full_name IS NOT NULL;
 
--- 6. Set default full_name for profiles that still have null values
+-- 5. Set default full_name for profiles that still have null values
 UPDATE profiles
 SET full_name = 'User ' || SUBSTRING(id::text, 1, 8)
 WHERE full_name IS NULL;
 
--- 7. Set default display_name equal to full_name for any remaining null display_names
+-- 6. Set default display_name equal to full_name for any remaining null display_names
 UPDATE profiles
 SET display_name = full_name
 WHERE display_name IS NULL;
 
--- 8. Log the results
+-- 7. Log the results
 DO $$
 DECLARE
   total_profiles INT;
