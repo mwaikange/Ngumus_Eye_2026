@@ -88,7 +88,7 @@ const FAMILY_PLANS = [
     price_cents: 15000, // N$150
     package_type: "family",
     description: "Covers 4 Family Members",
-    features: ["All individual features", "File management", "4 family members covered", "Shared dashboard"],
+    features: ["All individual features", "File management", "4 family members covered", "Priority response"],
   },
   {
     id: 6,
@@ -98,13 +98,7 @@ const FAMILY_PLANS = [
     price_cents: 36000, // N$360
     package_type: "family",
     description: "Covers 4 Family Members",
-    features: [
-      "All individual features",
-      "File management",
-      "4 family members covered",
-      "Shared dashboard",
-      "Priority response",
-    ],
+    features: ["All individual features", "File management", "4 family members covered", "Priority response"],
   },
   {
     id: 7,
@@ -118,7 +112,6 @@ const FAMILY_PLANS = [
       "All individual features",
       "File management",
       "4 family members covered",
-      "Shared dashboard",
       "Priority response",
       "Free counseling",
     ],
@@ -135,7 +128,6 @@ const FAMILY_PLANS = [
       "All individual features",
       "File management",
       "6 family members covered",
-      "Shared dashboard",
       "Priority response",
       "Free counseling sessions",
     ],
@@ -175,12 +167,12 @@ const TOURIST_PLANS = [
   },
   {
     id: 12,
-    code: "tourist_12months",
-    label: "Tourist 12 Months",
-    period_days: 365,
+    code: "tourist_30days",
+    label: "Tourist 30 Days",
+    period_days: 30,
     price_cents: 180000, // N$1800
     package_type: "tourist",
-    description: "Full year coverage",
+    description: "Full month coverage",
     features: [
       "Incident reporting",
       "Community groups",
