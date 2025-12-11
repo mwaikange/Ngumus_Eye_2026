@@ -1,17 +1,15 @@
 "use client"
 
-import type React from "react"
-
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { redeemVoucher } from "@/lib/actions/vouchers"
-import { Check, Ticket, MessageCircle } from "lucide-react"
+import { Check, MessageCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+
+const WHATSAPP_NUMBER = "264816802064"
+const WHATSAPP_URL = `https://api.whatsapp.com/send/?phone=${WHATSAPP_NUMBER}&text&type=phone_number&app_absent=0`
 
 interface Plan {
   id: number
@@ -24,12 +22,178 @@ interface Plan {
   features?: string[]
 }
 
+const INDIVIDUAL_PLANS = [
+  {
+    id: 1,
+    code: "individual_monthly",
+    label: "Individual 1 Month",
+    period_days: 30,
+    price_cents: 7000, // N$70
+    package_type: "individual",
+    description: "Perfect for personal safety",
+    features: ["Incident reporting", "Community groups", "File management", "24/7 support"],
+  },
+  {
+    id: 2,
+    code: "individual_3months",
+    label: "Individual 3 Months",
+    period_days: 90,
+    price_cents: 18000, // N$180
+    package_type: "individual",
+    description: "Save with quarterly plan",
+    features: ["Incident reporting", "Community groups", "File management", "24/7 support", "Priority response"],
+  },
+  {
+    id: 3,
+    code: "individual_6months",
+    label: "Individual 6 Months",
+    period_days: 180,
+    price_cents: 36000, // N$360
+    package_type: "individual",
+    description: "Save with semi-annual plan",
+    features: [
+      "Incident reporting",
+      "Community groups",
+      "File management",
+      "24/7 support",
+      "Priority response",
+      "Free counseling session",
+    ],
+  },
+  {
+    id: 4,
+    code: "individual_12months",
+    label: "Individual 12 Months",
+    period_days: 365,
+    price_cents: 66000, // N$660
+    package_type: "individual",
+    description: "Best value - annual plan",
+    features: [
+      "Incident reporting",
+      "Community groups",
+      "File management",
+      "24/7 support",
+      "Priority response",
+      "Free counseling sessions",
+    ],
+  },
+]
+
+const FAMILY_PLANS = [
+  {
+    id: 5,
+    code: "family_monthly",
+    label: "Family 1 Month",
+    period_days: 30,
+    price_cents: 15000, // N$150
+    package_type: "family",
+    description: "Covers 4 Family Members",
+    features: ["All individual features", "File management", "4 family members covered", "Shared dashboard"],
+  },
+  {
+    id: 6,
+    code: "family_3months",
+    label: "Family 3 Months",
+    period_days: 90,
+    price_cents: 36000, // N$360
+    package_type: "family",
+    description: "Covers 4 Family Members",
+    features: [
+      "All individual features",
+      "File management",
+      "4 family members covered",
+      "Shared dashboard",
+      "Priority response",
+    ],
+  },
+  {
+    id: 7,
+    code: "family_6months",
+    label: "Family 6 Months",
+    period_days: 180,
+    price_cents: 72000, // N$720
+    package_type: "family",
+    description: "Covers 4 Family Members",
+    features: [
+      "All individual features",
+      "File management",
+      "4 family members covered",
+      "Shared dashboard",
+      "Priority response",
+      "Free counseling",
+    ],
+  },
+  {
+    id: 8,
+    code: "family_12months",
+    label: "Family 12 Months",
+    period_days: 365,
+    price_cents: 144000, // N$1440
+    package_type: "family",
+    description: "Covers 6 Family Members",
+    features: [
+      "All individual features",
+      "File management",
+      "6 family members covered",
+      "Shared dashboard",
+      "Priority response",
+      "Free counseling sessions",
+    ],
+  },
+]
+
+const TOURIST_PLANS = [
+  {
+    id: 9,
+    code: "tourist_5days",
+    label: "Tourist 5 Days",
+    period_days: 5,
+    price_cents: 39900, // N$399
+    package_type: "tourist",
+    description: "Short stay coverage",
+    features: ["Incident reporting", "Community groups", "File management", "24/7 support"],
+  },
+  {
+    id: 10,
+    code: "tourist_10days",
+    label: "Tourist 10 Days",
+    period_days: 10,
+    price_cents: 70000, // N$700
+    package_type: "tourist",
+    description: "Extended stay coverage",
+    features: ["Incident reporting", "Community groups", "File management", "24/7 support", "Priority response"],
+  },
+  {
+    id: 11,
+    code: "tourist_14days",
+    label: "Tourist 14 Days",
+    period_days: 14,
+    price_cents: 90000, // N$900
+    package_type: "tourist",
+    description: "Two week coverage",
+    features: ["Incident reporting", "Community groups", "File management", "24/7 support", "Priority response"],
+  },
+  {
+    id: 12,
+    code: "tourist_12months",
+    label: "Tourist 12 Months",
+    period_days: 365,
+    price_cents: 180000, // N$1800
+    package_type: "tourist",
+    description: "Full year coverage",
+    features: [
+      "Incident reporting",
+      "Community groups",
+      "File management",
+      "24/7 support",
+      "Priority response",
+      "Free counseling",
+    ],
+  },
+]
+
 export default function SubscribePage() {
-  const [plans, setPlans] = useState<Plan[]>([])
   const [subscription, setSubscription] = useState<any>(null)
-  const [voucherCode, setVoucherCode] = useState("")
-  const [isRedeeming, setIsRedeeming] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -39,11 +203,6 @@ export default function SubscribePage() {
   async function fetchData() {
     const supabase = createClient()
 
-    // Fetch plans
-    const { data: plansData } = await supabase.from("plans").select("*").order("price_cents", { ascending: true })
-    if (plansData) setPlans(plansData)
-
-    // Check subscription
     const {
       data: { user },
     } = await supabase.auth.getUser()
@@ -61,34 +220,6 @@ export default function SubscribePage() {
       if (subData) setSubscription(subData)
     }
   }
-
-  const handleRedeem = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsRedeeming(true)
-    setError(null)
-
-    const result = await redeemVoucher(voucherCode)
-
-    if (result.error) {
-      setError(result.error)
-      setIsRedeeming(false)
-    } else {
-      router.push("/case-deck")
-    }
-  }
-
-  const individual = plans.filter((p) => p.package_type === "individual")
-  const family = plans.filter((p) => p.package_type === "family")
-  const tourist = plans.filter((p) => p.package_type === "tourist")
-
-  const defaultFeatures = [
-    "Incident reporting",
-    "Community groups",
-    "Case management",
-    "24/7 support",
-    "Priority response",
-    "Evidence vault storage",
-  ]
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
@@ -120,47 +251,44 @@ export default function SubscribePage() {
           </Card>
         )}
 
-        {individual.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-bold">Individual Plans</h2>
-              <p className="text-muted-foreground">Perfect for personal safety and security</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {individual.map((plan) => (
-                <PackageCard key={plan.id} plan={plan} features={defaultFeatures} />
-              ))}
-            </div>
+        {/* Individual Plans */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Individual Plans</h2>
+            <p className="text-muted-foreground">Perfect for personal safety and security</p>
           </div>
-        )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {INDIVIDUAL_PLANS.map((plan) => (
+              <PackageCard key={plan.id} plan={plan} />
+            ))}
+          </div>
+        </div>
 
-        {family.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-bold">Family Plans</h2>
-              <p className="text-muted-foreground">Protect your whole family together</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {family.map((plan) => (
-                <PackageCard key={plan.id} plan={plan} features={defaultFeatures} featured />
-              ))}
-            </div>
+        {/* Family Plans */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Family Plans</h2>
+            <p className="text-muted-foreground">Protect your whole family together</p>
           </div>
-        )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {FAMILY_PLANS.map((plan) => (
+              <PackageCard key={plan.id} plan={plan} featured />
+            ))}
+          </div>
+        </div>
 
-        {tourist.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <h2 className="text-2xl font-bold">Tourist Plans</h2>
-              <p className="text-muted-foreground">Short-term coverage for visitors</p>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {tourist.map((plan) => (
-                <PackageCard key={plan.id} plan={plan} features={defaultFeatures.slice(0, 4)} />
-              ))}
-            </div>
+        {/* Tourist Plans */}
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-2xl font-bold">Tourist Plans</h2>
+            <p className="text-muted-foreground">Short-term coverage for visitors</p>
           </div>
-        )}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+            {TOURIST_PLANS.map((plan) => (
+              <PackageCard key={plan.id} plan={plan} />
+            ))}
+          </div>
+        </div>
 
         <Card className="bg-accent/10 border-primary/20">
           <CardContent className="pt-6">
@@ -172,11 +300,7 @@ export default function SubscribePage() {
                   Contact us on WhatsApp to complete your payment and activate your subscription
                 </p>
               </div>
-              <a
-                href="https://wa.me/264813370707?text=I%20want%20to%20subscribe%20to%20Ngumu's%20Eye"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer">
                 <Button className="bg-[#25D366] hover:bg-[#1fb855] text-white">
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Contact on WhatsApp
@@ -185,48 +309,15 @@ export default function SubscribePage() {
             </div>
           </CardContent>
         </Card>
-
-        <Card>
-          <CardHeader>
-            <div className="flex items-center gap-2">
-              <Ticket className="h-5 w-5 text-primary" />
-              <CardTitle>Have a Voucher Code?</CardTitle>
-            </div>
-            <CardDescription>
-              Redeem your subscription voucher code here. Test voucher: IND-0000-ABCDERF
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleRedeem} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="voucher">Voucher Code</Label>
-                <Input
-                  id="voucher"
-                  placeholder="IND-0000-ABCDERF"
-                  value={voucherCode}
-                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                  className="font-mono"
-                />
-              </div>
-
-              {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
-
-              <Button type="submit" className="w-full" disabled={!voucherCode || isRedeeming}>
-                {isRedeeming ? "Redeeming..." : "Redeem Voucher"}
-              </Button>
-            </form>
-          </CardContent>
-        </Card>
       </div>
     </div>
   )
 }
 
-function PackageCard({ plan, features, featured }: { plan: Plan; features: string[]; featured?: boolean }) {
+function PackageCard({ plan, featured }: { plan: (typeof INDIVIDUAL_PLANS)[0]; featured?: boolean }) {
   const price = plan.price_cents / 100
-  const packageName = encodeURIComponent(plan.label)
   const whatsappMessage = `Hi, I want to subscribe to the ${plan.label} plan (N$${price} for ${plan.period_days} days)`
-  const whatsappUrl = `https://wa.me/264813370707?text=${encodeURIComponent(whatsappMessage)}`
+  const whatsappUrl = `https://api.whatsapp.com/send/?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(whatsappMessage)}&type=phone_number&app_absent=0`
 
   return (
     <Card className={featured ? "border-primary shadow-lg relative" : "relative"}>
@@ -251,7 +342,7 @@ function PackageCard({ plan, features, featured }: { plan: Plan; features: strin
       </CardHeader>
       <CardContent className="space-y-4">
         <ul className="space-y-2 text-sm">
-          {features.slice(0, 6).map((feature: string, i: number) => (
+          {plan.features?.slice(0, 6).map((feature: string, i: number) => (
             <li key={i} className="flex items-start gap-2">
               <Check className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
               <span>{feature}</span>

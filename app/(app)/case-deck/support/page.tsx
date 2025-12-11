@@ -11,6 +11,9 @@ import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Phone, MessageCircle, Calendar, Clock } from "lucide-react"
 
+const WHATSAPP_NUMBER = "+264816802064"
+const WHATSAPP_URL = "https://api.whatsapp.com/send/?phone=264816802064&text&type=phone_number&app_absent=0"
+
 export default function SupportPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -69,7 +72,7 @@ export default function SupportPage() {
       <AppHeader title="Counseling & Support" backHref="/case-deck" />
 
       <div className="container max-w-4xl px-4 py-6 space-y-6">
-        {/* Emergency Contact */}
+        {/* Emergency Contact - Updated phone and WhatsApp to new number */}
         <Card className="bg-destructive/10 border-destructive/20">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-destructive">
@@ -79,13 +82,13 @@ export default function SupportPage() {
             <CardDescription>For immediate help, contact us directly</CardDescription>
           </CardHeader>
           <CardContent className="flex gap-2">
-            <a href="tel:+264813370707" className="flex-1">
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
               <Button variant="destructive" className="w-full">
                 <Phone className="h-4 w-4 mr-2" />
                 Call Now
               </Button>
             </a>
-            <a href="https://wa.me/264813370707?text=Emergency%20Assistance%20Needed" className="flex-1">
+            <a href={WHATSAPP_URL} target="_blank" rel="noopener noreferrer" className="flex-1">
               <Button variant="outline" className="w-full bg-transparent">
                 <MessageCircle className="h-4 w-4 mr-2" />
                 WhatsApp
@@ -94,7 +97,7 @@ export default function SupportPage() {
           </CardContent>
         </Card>
 
-        {/* Request Form */}
+        {/* Request Form - Increased description character limit */}
         <Card>
           <CardHeader>
             <CardTitle>Request Support</CardTitle>
@@ -137,10 +140,13 @@ export default function SupportPage() {
                 <Textarea
                   id="description"
                   name="description"
-                  placeholder="Describe your request..."
-                  rows={4}
+                  placeholder="Describe your request in detail..."
+                  rows={8}
+                  maxLength={5000}
+                  className="min-h-[200px] resize-y"
                   required
                 />
+                <p className="text-xs text-muted-foreground">Up to 1000 words allowed</p>
               </div>
               <Button type="submit" disabled={loading}>
                 {loading ? "Submitting..." : "Submit Request"}

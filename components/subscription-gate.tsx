@@ -63,7 +63,7 @@ export function SubscriptionGate({ children }: { children: React.ReactNode }) {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground text-center">
-              Subscribe now to unlock access to case management, device tracking, counseling support, and more premium
+              Subscribe now to unlock access to file management, device tracking, counseling support, and more premium
               features.
             </p>
             <Link href="/subscribe">
