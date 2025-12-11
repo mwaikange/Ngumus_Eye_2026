@@ -5,15 +5,19 @@ import { createClient } from "@/lib/supabase/server"
 export async function getActiveAds() {
   const supabase = await createClient()
 
+  const now = new Date().toISOString()
+
   const { data: ads, error } = await supabase
     .from("ad_inventory")
-    .select("id, title, description, media_url, media_type, target_url, display_priority, company")
-    .eq("status", "active") // Changed from is_active to status
+    .select("id, title, description, media_url, media_type, target_url, display_priority")
+    .eq("is_active", true)
+    .lte("start_date", now)
+    .gte("end_date", now)
     .order("display_priority", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(10)
 
-  console.log("[v0] Fetched ads:", ads?.length, "ads")
+  console.log("[v0] Fetched ads:", ads?.length || 0, "ads")
 
   if (error) {
     console.error("[v0] Error fetching ads:", error)

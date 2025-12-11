@@ -165,29 +165,63 @@ export async function uploadAvatar(formData: FormData) {
 export async function getFollowersList(userId: string) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const { data: follows, error: followsError } = await supabase
     .from("user_follows")
-    .select("follower_id, profiles!user_follows_follower_id_fkey(id, display_name, avatar_url, trust_score)")
+    .select("follower_id")
     .eq("following_id", userId)
 
-  if (error) {
-    return { error: error.message }
+  if (followsError) {
+    console.error("[v0] Error fetching followers:", followsError)
+    return { error: followsError.message }
   }
 
-  return { data: data?.map((d) => d.profiles) || [] }
+  if (!follows || follows.length === 0) {
+    return { data: [] }
+  }
+
+  const followerIds = follows.map((f) => f.follower_id)
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url, trust_score")
+    .in("id", followerIds)
+
+  if (profilesError) {
+    console.error("[v0] Error fetching follower profiles:", profilesError)
+    return { error: profilesError.message }
+  }
+
+  return { data: profiles || [] }
 }
 
 export async function getFollowingList(userId: string) {
   const supabase = await createClient()
 
-  const { data, error } = await supabase
+  const { data: follows, error: followsError } = await supabase
     .from("user_follows")
-    .select("following_id, profiles!user_follows_following_id_fkey(id, display_name, avatar_url, trust_score)")
+    .select("following_id")
     .eq("follower_id", userId)
 
-  if (error) {
-    return { error: error.message }
+  if (followsError) {
+    console.error("[v0] Error fetching following:", followsError)
+    return { error: followsError.message }
   }
 
-  return { data: data?.map((d) => d.profiles) || [] }
+  if (!follows || follows.length === 0) {
+    return { data: [] }
+  }
+
+  const followingIds = follows.map((f) => f.following_id)
+
+  const { data: profiles, error: profilesError } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url, trust_score")
+    .in("id", followingIds)
+
+  if (profilesError) {
+    console.error("[v0] Error fetching following profiles:", profilesError)
+    return { error: profilesError.message }
+  }
+
+  return { data: profiles || [] }
 }
