@@ -10,6 +10,8 @@ import "./globals.css"
 const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
+const siteUrl = "https://app.ngumus-eye.site"
+
 export const metadata: Metadata = {
   title: "NGUMU'S EYE — Social Welfare & Community App",
   description:
@@ -19,28 +21,26 @@ export const metadata: Metadata = {
     icon: "/logo.jpg",
     apple: "/logo.jpg",
   },
-  // OpenGraph for Facebook, WhatsApp, LinkedIn
   openGraph: {
     type: "website",
-    url: "https://ngumu.vercel.app/",
+    url: `${siteUrl}/`,
     title: "NGUMU'S EYE — Social Welfare & Community App",
     description: "Stay informed. Stay safe. Stay connected with your community.",
-    siteName: "Ngumu's Eye",
+    siteName: "NGUMU'S EYE",
     images: [
       {
-        url: "https://ngumu.vercel.app/og-image.png",
+        url: `${siteUrl}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: "Ngumu's Eye - Social Welfare & Community App",
+        alt: "NGUMU'S EYE Logo",
       },
     ],
   },
-  // Twitter Card
   twitter: {
     card: "summary_large_image",
-    title: "NGUMU'S EYE — Community Safety App",
-    description: "Your trusted app for social welfare, alerts and community safety.",
-    images: ["https://ngumu.vercel.app/og-image.png"],
+    title: "NGUMU'S EYE — Social Welfare & Community App",
+    description: "Stay informed. Stay safe. Stay connected with your community.",
+    images: [`${siteUrl}/og-image.png`],
   },
   // Additional SEO
   keywords: [
@@ -50,11 +50,13 @@ export const metadata: Metadata = {
     "incident reporting",
     "community app",
     "Namibia",
+    "ngumu",
+    "safety alerts",
   ],
-  authors: [{ name: "Ngumu's Eye" }],
-  creator: "Ngumu's Eye",
-  publisher: "Ngumu's Eye",
-  metadataBase: new URL("https://ngumu.vercel.app"),
+  authors: [{ name: "NGUMU'S EYE" }],
+  creator: "NGUMU'S EYE",
+  publisher: "NGUMU'S EYE",
+  metadataBase: new URL(siteUrl),
 }
 
 export default function RootLayout({
@@ -71,9 +73,9 @@ export default function RootLayout({
             __html: JSON.stringify({
               "@context": "https://schema.org",
               "@type": "Organization",
-              name: "Ngumu's Eye",
-              url: "https://ngumu.vercel.app",
-              logo: "https://ngumu.vercel.app/og-image.png",
+              name: "NGUMU'S EYE",
+              url: siteUrl,
+              logo: `${siteUrl}/og-image.png`,
               description: "A modern, community-driven social welfare & neighborhood safety app.",
               sameAs: [],
             }),
