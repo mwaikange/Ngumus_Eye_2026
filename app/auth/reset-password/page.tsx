@@ -7,52 +7,44 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import Image from "next/image"
 import { Eye, EyeOff } from "lucide-react"
 
-export default function SignUpPage() {
-  const [formData, setFormData] = useState({
-    displayName: "",
-    email: "",
-    phone: "",
-    password: "",
-    confirmPassword: "",
-  })
+export default function ResetPasswordPage() {
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const router = useRouter()
 
-  const handleSignUp = async (e: React.FormEvent) => {
+  const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     const supabase = createClient()
     setIsLoading(true)
     setError(null)
 
-    if (formData.password !== formData.confirmPassword) {
+    if (password !== confirmPassword) {
       setError("Passwords do not match")
       setIsLoading(false)
       return
     }
 
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters")
+      setIsLoading(false)
+      return
+    }
+
     try {
-      const { error } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: process.env.NEXT_PUBLIC_DEV_SUPABASE_REDIRECT_URL || `${window.location.origin}/feed`,
-          data: {
-            display_name: formData.displayName,
-            phone: formData.phone,
-          },
-        },
+      const { error } = await supabase.auth.updateUser({
+        password: password,
       })
       if (error) throw error
-      router.push("/auth/sign-up-success")
+      router.push("/auth/login?reset=success")
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
@@ -71,53 +63,21 @@ export default function SignUpPage() {
           </div>
           <Card>
             <CardHeader>
-              <CardTitle className="text-2xl">Create Account</CardTitle>
-              <CardDescription>Join your community safety network</CardDescription>
+              <CardTitle className="text-2xl">Reset Password</CardTitle>
+              <CardDescription>Enter your new password</CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSignUp}>
-                <div className="flex flex-col gap-4">
+              <form onSubmit={handleResetPassword}>
+                <div className="flex flex-col gap-6">
                   <div className="grid gap-2">
-                    <Label htmlFor="displayName">Full Name</Label>
-                    <Input
-                      id="displayName"
-                      type="text"
-                      placeholder="John Doe"
-                      required
-                      value={formData.displayName}
-                      onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="your@email.com"
-                      required
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="phone">Mobile Number</Label>
-                    <Input
-                      id="phone"
-                      type="tel"
-                      placeholder="+264 81 234 5678"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="password">Password</Label>
+                    <Label htmlFor="password">New Password</Label>
                     <div className="relative">
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
                         required
-                        value={formData.password}
-                        onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
                         className="pr-10"
                       />
                       <button
@@ -130,14 +90,14 @@ export default function SignUpPage() {
                     </div>
                   </div>
                   <div className="grid gap-2">
-                    <Label htmlFor="confirmPassword">Confirm Password</Label>
+                    <Label htmlFor="confirmPassword">Confirm New Password</Label>
                     <div className="relative">
                       <Input
                         id="confirmPassword"
                         type={showConfirmPassword ? "text" : "password"}
                         required
-                        value={formData.confirmPassword}
-                        onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
                         className="pr-10"
                       />
                       <button
@@ -151,14 +111,8 @@ export default function SignUpPage() {
                   </div>
                   {error && <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">{error}</div>}
                   <Button type="submit" className="w-full" disabled={isLoading}>
-                    {isLoading ? "Creating account..." : "Sign Up"}
+                    {isLoading ? "Resetting password..." : "Reset Password"}
                   </Button>
-                </div>
-                <div className="mt-4 text-center text-sm">
-                  Already have an account?{" "}
-                  <Link href="/auth/login" className="underline underline-offset-4 text-primary">
-                    Sign in
-                  </Link>
                 </div>
               </form>
             </CardContent>
