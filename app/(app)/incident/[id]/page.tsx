@@ -138,6 +138,16 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
                 </div>
               </div>
 
+              {incidentWithRelations.town && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground" />
+                  <div>
+                    <p className="text-muted-foreground">Town</p>
+                    <p className="font-medium">{incidentWithRelations.town}</p>
+                  </div>
+                </div>
+              )}
+
               <div className="flex items-center gap-2">
                 <User className="h-4 w-4 text-muted-foreground" />
                 <div>
