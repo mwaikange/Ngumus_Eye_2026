@@ -248,9 +248,18 @@ export default function SubscribePage() {
         .select("*, plans(*)")
         .eq("code", voucherCode.trim().toUpperCase())
         .is("redeemed_by", null)
-        .single()
+        .maybeSingle()
 
-      if (voucherCheckError || !voucher) {
+      console.log("[v0] Voucher check result:", { voucher, voucherCheckError })
+
+      if (voucherCheckError) {
+        console.error("[v0] Voucher check error:", voucherCheckError)
+        setVoucherError("Error checking voucher code")
+        setIsRedeemingVoucher(false)
+        return
+      }
+
+      if (!voucher) {
         setVoucherError("Invalid or already used voucher code")
         setIsRedeemingVoucher(false)
         return
@@ -270,6 +279,7 @@ export default function SubscribePage() {
       })
 
       if (subError) {
+        console.error("[v0] Subscription creation error:", subError)
         setVoucherError("Failed to activate subscription")
         setIsRedeemingVoucher(false)
         return
