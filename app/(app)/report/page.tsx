@@ -104,6 +104,7 @@ export default function ReportPage() {
     type_id: "",
     title: "",
     description: "",
+    town: "",
     area_radius_m: "200",
   })
 
@@ -245,6 +246,7 @@ export default function ReportPage() {
       type_id: Number.parseInt(formData.type_id),
       title: formData.title,
       description: formData.description,
+      town: formData.town,
       lat: location.lat,
       lng: location.lng,
       area_radius_m: Number.parseInt(formData.area_radius_m),
@@ -386,6 +388,17 @@ export default function ReportPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="town">Town</Label>
+                <Input
+                  id="town"
+                  placeholder="Enter nearest town"
+                  value={formData.town}
+                  onChange={(e) => setFormData({ ...formData, town: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">Enter the nearest town or city</p>
               </div>
 
               <div className="space-y-2">
@@ -628,6 +641,11 @@ export default function ReportPage() {
                     </div>
                   </div>
                 )}
+
+                <div>
+                  <Label className="text-muted-foreground">Town</Label>
+                  <p className="text-sm">{formData.town}</p>
+                </div>
 
                 <div>
                   <Label className="text-muted-foreground">Location</Label>

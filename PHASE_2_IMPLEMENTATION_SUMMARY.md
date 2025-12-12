@@ -165,4 +165,4 @@ All Phase 2 features are now implemented and ready for testing:
 6. Monitor ad view tracking data
 \`\`\`
 
-```tsx file="" isHidden
+\`\`\`tsx file="" isHidden

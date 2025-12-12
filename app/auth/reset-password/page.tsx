@@ -1,16 +1,16 @@
 "use client"
 
 import type React from "react"
-
 import { createClient } from "@/lib/supabase/client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
-import { Eye, EyeOff } from "lucide-react"
+import { Eye, EyeOff, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
+import Link from "next/link"
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("")
@@ -19,7 +19,53 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [success, setSuccess] = useState(false)
+  const [isCheckingSession, setIsCheckingSession] = useState(true)
+  const [hasValidSession, setHasValidSession] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const supabase = createClient()
+
+      // Check for hash fragment (Supabase sometimes uses this for recovery)
+      const hash = window.location.hash
+      if (hash && hash.includes("access_token")) {
+        // Parse the hash to get the access token
+        const params = new URLSearchParams(hash.substring(1))
+        const accessToken = params.get("access_token")
+        const refreshToken = params.get("refresh_token")
+        const type = params.get("type")
+
+        if (accessToken && type === "recovery") {
+          // Set the session manually
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken || "",
+          })
+
+          if (!error) {
+            setHasValidSession(true)
+            setIsCheckingSession(false)
+            // Clear the hash from URL
+            window.history.replaceState(null, "", window.location.pathname)
+            return
+          }
+        }
+      }
+
+      // Check for existing session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session) {
+        setHasValidSession(true)
+      }
+      setIsCheckingSession(false)
+    }
+
+    checkSession()
+  }, [])
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -44,12 +90,110 @@ export default function ResetPasswordPage() {
         password: password,
       })
       if (error) throw error
-      router.push("/auth/login?reset=success")
+      setSuccess(true)
+      // Sign out after password reset so they can log in with new password
+      await supabase.auth.signOut()
     } catch (error: unknown) {
       setError(error instanceof Error ? error.message : "An error occurred")
     } finally {
       setIsLoading(false)
     }
+  }
+
+  if (isCheckingSession) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-muted/30">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-muted-foreground">Verifying reset link...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!hasValidSession) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-muted/30">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Image
+                src="/logo.jpg"
+                alt="Ngumu's Eye Logo"
+                width={80}
+                height={80}
+                className="h-20 w-20 object-contain"
+              />
+              <h1 className="text-2xl font-bold">{"Ngumu's Eye"}</h1>
+              <p className="text-sm text-muted-foreground">Community Safety Platform</p>
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <AlertCircle className="h-6 w-6 text-destructive" />
+                  Invalid or Expired Link
+                </CardTitle>
+                <CardDescription>This password reset link is invalid or has expired</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <p className="text-sm text-muted-foreground">
+                    Please request a new password reset link. Reset links expire after 24 hours for security.
+                  </p>
+                  <Link href="/auth/forgot-password">
+                    <Button className="w-full">Request New Reset Link</Button>
+                  </Link>
+                  <Link href="/auth/login">
+                    <Button variant="outline" className="w-full bg-transparent">
+                      Back to Sign In
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (success) {
+    return (
+      <div className="flex min-h-svh w-full items-center justify-center p-6 md:p-10 bg-muted/30">
+        <div className="w-full max-w-sm">
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col items-center gap-2 text-center">
+              <Image
+                src="/logo.jpg"
+                alt="Ngumu's Eye Logo"
+                width={80}
+                height={80}
+                className="h-20 w-20 object-contain"
+              />
+              <h1 className="text-2xl font-bold">{"Ngumu's Eye"}</h1>
+              <p className="text-sm text-muted-foreground">Community Safety Platform</p>
+            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                  Password Reset Successfully
+                </CardTitle>
+                <CardDescription>Your password has been updated</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex flex-col gap-4">
+                  <p className="text-sm text-muted-foreground">You can now sign in with your new password.</p>
+                  <Link href="/auth/login">
+                    <Button className="w-full">Sign In</Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

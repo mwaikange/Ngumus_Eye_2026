@@ -8,6 +8,7 @@ export interface CreateIncidentData {
   type_id: number
   title: string
   description?: string
+  town?: string
   lat: number
   lng: number
   area_radius_m?: number
@@ -32,6 +33,7 @@ export async function createIncident(data: CreateIncidentData) {
       type_id: data.type_id,
       title: data.title,
       description: data.description,
+      town: data.town,
       lat: data.lat,
       lng: data.lng,
       geohash,

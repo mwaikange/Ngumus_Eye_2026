@@ -7,6 +7,9 @@ import { useState, useEffect } from "react"
 import { createClient } from "@/lib/supabase/client"
 import { Check, MessageCircle } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { useToast } from "@/components/ui/use-toast"
+import { Input } from "@/components/ui/input"
+import { Loader2 } from "lucide-react"
 
 const WHATSAPP_NUMBER = "264816802064"
 const WHATSAPP_URL = `https://api.whatsapp.com/send/?phone=${WHATSAPP_NUMBER}&text&type=phone_number&app_absent=0`
@@ -186,7 +189,11 @@ const TOURIST_PLANS = [
 
 export default function SubscribePage() {
   const [subscription, setSubscription] = useState<any>(null)
+  const [voucherCode, setVoucherCode] = useState("")
+  const [isRedeemingVoucher, setIsRedeemingVoucher] = useState(false)
+  const [voucherError, setVoucherError] = useState<string | null>(null)
   const router = useRouter()
+  const { toast } = useToast()
 
   useEffect(() => {
     fetchData()
@@ -210,6 +217,84 @@ export default function SubscribePage() {
         .maybeSingle()
 
       if (subData) setSubscription(subData)
+    }
+  }
+
+  async function handleRedeemVoucher() {
+    if (!voucherCode.trim()) {
+      setVoucherError("Please enter a voucher code")
+      return
+    }
+
+    setIsRedeemingVoucher(true)
+    setVoucherError(null)
+
+    try {
+      const supabase = createClient()
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (!user) {
+        setVoucherError("Please log in to redeem a voucher")
+        setIsRedeemingVoucher(false)
+        return
+      }
+
+      // Check if voucher exists and is unused
+      const { data: voucher, error: voucherCheckError } = await supabase
+        .from("vouchers")
+        .select("*, plans(*)")
+        .eq("code", voucherCode.trim().toUpperCase())
+        .is("redeemed_by", null)
+        .single()
+
+      if (voucherCheckError || !voucher) {
+        setVoucherError("Invalid or already used voucher code")
+        setIsRedeemingVoucher(false)
+        return
+      }
+
+      // Create subscription
+      const expiresAt = new Date()
+      expiresAt.setDate(expiresAt.getDate() + (voucher.days || voucher.plans?.period_days || 30))
+
+      const { error: subError } = await supabase.from("user_subscriptions").insert({
+        user_id: user.id,
+        plan_id: voucher.plan_id,
+        started_at: new Date().toISOString(),
+        expires_at: expiresAt.toISOString(),
+        status: "active",
+        payment_reference: `VOUCHER-${voucherCode}`,
+      })
+
+      if (subError) {
+        setVoucherError("Failed to activate subscription")
+        setIsRedeemingVoucher(false)
+        return
+      }
+
+      // Mark voucher as redeemed
+      await supabase
+        .from("vouchers")
+        .update({
+          redeemed_by: user.id,
+          redeemed_at: new Date().toISOString(),
+        })
+        .eq("code", voucherCode.trim().toUpperCase())
+
+      toast({
+        title: "Voucher redeemed!",
+        description: `Your ${voucher.plans?.label} subscription is now active`,
+      })
+
+      setVoucherCode("")
+      fetchData() // Refresh subscription data
+    } catch (error) {
+      setVoucherError("An error occurred. Please try again.")
+    } finally {
+      setIsRedeemingVoucher(false)
     }
   }
 
@@ -238,6 +323,42 @@ export default function SubscribePage() {
                 <a href="/case-deck">
                   <Button>Go to My Case Deck</Button>
                 </a>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {!subscription && (
+          <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-lg">Have a Voucher Code?</CardTitle>
+              <CardDescription>Enter your subscription voucher code to activate your membership</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Enter voucher code"
+                    value={voucherCode}
+                    onChange={(e) => {
+                      setVoucherCode(e.target.value.toUpperCase())
+                      setVoucherError(null)
+                    }}
+                    disabled={isRedeemingVoucher}
+                    className="uppercase"
+                  />
+                  {voucherError && <p className="text-sm text-destructive mt-1">{voucherError}</p>}
+                </div>
+                <Button onClick={handleRedeemVoucher} disabled={isRedeemingVoucher || !voucherCode.trim()}>
+                  {isRedeemingVoucher ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Redeeming...
+                    </>
+                  ) : (
+                    "Redeem"
+                  )}
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -308,8 +429,8 @@ export default function SubscribePage() {
 
 function PackageCard({ plan, featured }: { plan: (typeof INDIVIDUAL_PLANS)[0]; featured?: boolean }) {
   const price = plan.price_cents / 100
-  const whatsappMessage = `Hi, I want to subscribe to the ${plan.label} plan (N$${price} for ${plan.period_days} days)`
-  const whatsappUrl = `https://api.whatsapp.com/send/?phone=${WHATSAPP_NUMBER}&text=${encodeURIComponent(whatsappMessage)}&type=phone_number&app_absent=0`
+  const whatsappMessage = `Hi Ngumu's Eye Support, I would like to subscribe to the ${plan.label} of N$${price}. Please advise how I can make payment?`
+  const whatsappUrl = `https://wa.me/264816802064?text=${encodeURIComponent(whatsappMessage)}`
 
   return (
     <Card className={featured ? "border-primary shadow-lg relative" : "relative"}>

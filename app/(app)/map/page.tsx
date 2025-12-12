@@ -17,6 +17,7 @@ interface IncidentMarker {
   type_label: string
   severity: number
   verification_level: number
+  town?: string // Added town field
 }
 
 export default function MapPage() {
@@ -34,6 +35,7 @@ export default function MapPage() {
           title,
           lat,
           lng,
+          town,
           verification_level,
           incident_types(label, severity)
         `)
@@ -48,6 +50,7 @@ export default function MapPage() {
             title: item.title,
             lat: item.lat,
             lng: item.lng,
+            town: item.town, // Added town to mapped data
             type_label: item.incident_types.label,
             severity: item.incident_types.severity,
             verification_level: item.verification_level,
@@ -186,6 +189,11 @@ export default function MapPage() {
                       {selectedIncident.lat.toFixed(4)}, {selectedIncident.lng.toFixed(4)}
                     </span>
                   </div>
+                  {selectedIncident.town && (
+                    <div className="text-sm text-muted-foreground">
+                      <span className="font-medium">Town:</span> {selectedIncident.town}
+                    </div>
+                  )}
                   <Button asChild className="w-full">
                     <Link href={`/incident/${selectedIncident.id}`}>View Details</Link>
                   </Button>
