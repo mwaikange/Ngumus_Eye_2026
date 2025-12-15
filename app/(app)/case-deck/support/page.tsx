@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -42,28 +44,35 @@ export default function SupportPage() {
     }
   }
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
     setLoading(true)
+
+    const formData = new FormData(e.currentTarget)
     const supabase = createClient()
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    if (!user) return
+    if (!user) {
+      setLoading(false)
+      return
+    }
 
     const { error } = await supabase.from("support_requests").insert({
       user_id: user.id,
-      request_type: formData.get("requestType"),
-      priority: formData.get("priority"),
-      description: formData.get("description"),
+      request_type: formData.get("requestType") as string,
+      priority: formData.get("priority") as string,
+      description: formData.get("description") as string,
       status: "pending",
     })
 
     setLoading(false)
 
     if (!error) {
-      loadRequests()
-      ;(formData.target as any).reset()
+      e.currentTarget.reset()
+      setRequestType("")
+      await loadRequests()
     }
   }
 
@@ -104,7 +113,7 @@ export default function SupportPage() {
             <CardDescription>Submit a counseling or support request</CardDescription>
           </CardHeader>
           <CardContent>
-            <form action={handleSubmit as any} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="requestType">Request Type *</Label>

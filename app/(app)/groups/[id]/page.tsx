@@ -39,6 +39,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
 
   const isMember = !!membership
   const isCreator = group.created_by === user.id
+  const isMemberOrCreator = isMember || isCreator
 
   const { data: pendingRequest } = await supabase
     .from("group_requests")
@@ -74,9 +75,10 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
               </Link>
             </Button>
 
-            {isCreator && group.visibility === "private" ? (
+            {isCreator ? (
               <ManageRequestsDialog
                 groupId={id}
+                groupName={group.name}
                 triggerElement={
                   <Button variant="ghost" size="icon" className="rounded-full h-12 w-12 bg-white shadow-sm">
                     <Settings className="h-6 w-6" />
@@ -98,11 +100,7 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
           <div className="bg-white rounded-2xl shadow-sm p-4">
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0 w-14 h-14">
-                <img
-                  src="https://hebbkx1anhila5yf.public.blob.vercel-storage.com/Ngumu%20Eye%20Logo-8mFPpu4Bylq1Gzsh99S3tKLxEjuvxV.jpg"
-                  alt="Ngumu Eye"
-                  className="w-full h-full object-contain"
-                />
+                <img src="/images/ngumu-20eye-20logo.jpg" alt="Ngumu Eye" className="w-full h-full object-contain" />
               </div>
 
               <div className="flex-1 min-w-0">
@@ -173,15 +171,15 @@ export default async function GroupDetailPage({ params }: { params: Promise<{ id
           </div>
         )}
 
-        {isMember || isCreator ? (
-          <GroupChat groupId={id} userId={user.id} />
+        {isMemberOrCreator || group.visibility === "public" ? (
+          <GroupChat groupId={id} userId={user.id} isMember={isMemberOrCreator} />
         ) : (
           <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg p-12 text-center mt-8">
             <Shield className="h-16 w-16 mx-auto mb-4 text-muted-foreground/30" />
             <p className="text-muted-foreground text-sm leading-relaxed">
               {pendingRequest
                 ? "Your membership request is pending approval from the group creator"
-                : `${group.visibility === "public" ? "Join" : "Request to join"} the group to view messages and chat with members`}
+                : "Request to join the group to view messages and chat with members"}
             </p>
           </div>
         )}

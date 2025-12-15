@@ -14,6 +14,12 @@ export async function requestMembership(groupId: string) {
     return { error: "Not authenticated" }
   }
 
+  const { data: group } = await supabase.from("groups").select("created_by, name").eq("id", groupId).single()
+
+  if (!group) {
+    return { error: "Group not found" }
+  }
+
   const { error } = await supabase.from("group_requests").insert({
     group_id: groupId,
     user_id: user.id,
@@ -26,6 +32,9 @@ export async function requestMembership(groupId: string) {
     }
     return { error: error.message }
   }
+
+  // This would require a notifications system
+  console.log("[v0] Membership request created for group creator:", group.created_by)
 
   revalidatePath("/groups")
   return { success: true, message: "Membership request sent to group creator" }
@@ -42,20 +51,49 @@ export async function joinGroup(groupId: string) {
     return { error: "Not authenticated" }
   }
 
-  // This bypasses RLS issues and handles duplicate checking atomically
-  const { data, error } = await supabase.rpc("join_group_safe", {
-    p_group_id: groupId,
-  })
+  const { data: group } = await supabase.from("groups").select("visibility, created_by").eq("id", groupId).single()
 
-  if (error) {
-    console.error("[v0] Error joining group:", error)
-    return { error: error.message }
+  if (!group) {
+    return { error: "Group not found" }
   }
 
-  revalidatePath("/groups")
-  revalidatePath(`/groups/${groupId}`)
+  if (group.visibility === "public") {
+    const { error } = await supabase.from("group_members").insert({
+      group_id: groupId,
+      user_id: user.id,
+      role: "member",
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      approved_by: group.created_by,
+    })
 
-  return data
+    if (error) {
+      if (error.code === "23505") {
+        return { error: "You are already a member of this group" }
+      }
+      return { error: error.message }
+    }
+
+    revalidatePath("/groups")
+    revalidatePath(`/groups/${groupId}`)
+
+    return { success: true, message: "Successfully joined group!" }
+  } else {
+    // This bypasses RLS issues and handles duplicate checking atomically
+    const { data, error } = await supabase.rpc("join_group_safe", {
+      p_group_id: groupId,
+    })
+
+    if (error) {
+      console.error("[v0] Error joining group:", error)
+      return { error: error.message }
+    }
+
+    revalidatePath("/groups")
+    revalidatePath(`/groups/${groupId}`)
+
+    return data
+  }
 }
 
 export async function leaveGroup(groupId: string) {

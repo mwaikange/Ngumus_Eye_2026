@@ -103,7 +103,7 @@ export default async function SearchPage({
                     {users.map((user) => (
                       <Card key={user.id}>
                         <CardContent className="py-4">
-                          <a href={`/profile/${user.id}`} className="flex items-center gap-3">
+                          <a href={`/user-posts/${user.id}`} className="flex items-center gap-3">
                             <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
                               {user.display_name?.charAt(0).toUpperCase() || "?"}
                             </div>
@@ -144,7 +144,7 @@ export default async function SearchPage({
               users.map((user) => (
                 <Card key={user.id}>
                   <CardContent className="py-4">
-                    <a href={`/profile/${user.id}`} className="flex items-center gap-3">
+                    <a href={`/user-posts/${user.id}`} className="flex items-center gap-3">
                       <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
                         {user.display_name?.charAt(0).toUpperCase() || "?"}
                       </div>

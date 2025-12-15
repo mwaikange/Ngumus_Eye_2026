@@ -21,6 +21,7 @@ async function getFeedData(filter: string, userId?: string) {
       created_by,
       area_radius_m,
       verification_level,
+      admin_verified,
       incident_types(label, severity),
       incident_media(path),
       profiles!incidents_created_by_fkey(id, display_name, avatar_url)
@@ -28,7 +29,13 @@ async function getFeedData(filter: string, userId?: string) {
     .order("created_at", { ascending: false })
     .limit(40)
 
-  if (filter === "following" && userId) {
+  if (filter === "verified") {
+    // Only show admin-verified posts
+    query = query.eq("admin_verified", true)
+  } else if (filter === "nearby") {
+    // Nearby filter (would need user location)
+    // For now, just show recent posts
+  } else if (filter === "following" && userId) {
     const { data: followingData } = await supabase.from("user_follows").select("following_id").eq("follower_id", userId)
 
     const followingIds = followingData?.map((f) => f.following_id) || []
@@ -36,7 +43,6 @@ async function getFeedData(filter: string, userId?: string) {
     if (followingIds.length > 0) {
       query = query.in("created_by", followingIds)
     } else {
-      // Return empty if not following anyone
       return { posts: [], ads: [] }
     }
   }
@@ -58,7 +64,6 @@ async function getFeedData(filter: string, userId?: string) {
 
   const posts: FeedPost[] =
     incidentsData?.map((row: any) => {
-      // Convert storage paths to full public URLs
       const mediaUrls =
         row.incident_media
           ?.map((m: any) => {
@@ -90,17 +95,18 @@ async function getFeedData(filter: string, userId?: string) {
       }
     }) ?? []
 
-  // Transform ads
   const ads: FeedAd[] =
-    adsData?.map((ad) => ({
-      id: ad.id,
-      type: "ad" as const,
-      title: ad.title,
-      description: ad.description,
-      media_url: ad.media_url,
-      media_type: ad.media_type,
-      target_url: ad.target_url,
-    })) ?? []
+    filter === "all"
+      ? (adsData?.map((ad) => ({
+          id: ad.id,
+          type: "ad" as const,
+          title: ad.title,
+          description: ad.description,
+          media_url: ad.media_url,
+          media_type: ad.media_type,
+          target_url: ad.target_url,
+        })) ?? [])
+      : []
 
   return { posts, ads }
 }
