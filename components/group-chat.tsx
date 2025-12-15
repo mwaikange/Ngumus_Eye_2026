@@ -135,7 +135,6 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
     const imageToUpload = selectedImage
     const previewUrl = imagePreview
 
-    // Create optimistic message
     const optimisticId = `temp-${Date.now()}`
     const optimisticMessage: Message = {
       id: optimisticId,
@@ -161,6 +160,8 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
       // Upload image if present
       if (imageToUpload) {
         setIsUploading(true)
+        console.log("[v0] Uploading image:", imageToUpload.name, imageToUpload.type)
+
         const formData = new FormData()
         formData.append("file", imageToUpload)
 
@@ -169,13 +170,20 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
           body: formData,
         })
 
-        if (!response.ok) throw new Error("Upload failed")
+        if (!response.ok) {
+          const errorText = await response.text()
+          console.error("[v0] Upload failed:", errorText)
+          throw new Error(`Upload failed: ${errorText}`)
+        }
+
         const { url } = await response.json()
         imageUrl = url
+        console.log("[v0] Image uploaded successfully:", imageUrl)
         setIsUploading(false)
       }
 
       // Send message
+      console.log("[v0] Sending message to group:", groupId)
       const result = await sendGroupMessage({
         groupId,
         message: messageText || undefined,
@@ -183,12 +191,15 @@ export function GroupChat({ groupId, userId }: { groupId: string; userId: string
       })
 
       if (result.error) {
+        console.error("[v0] Send message error:", result.error)
         throw new Error(result.error)
       }
 
+      console.log("[v0] Message sent successfully")
       // Remove optimistic message (real one will come via realtime)
       setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
     } catch (error) {
+      console.error("[v0] Error in handleSend:", error)
       // Mark as failed
       setMessages((prev) =>
         prev.map((m) => (m.id === optimisticId ? { ...m, isFailed: true, isOptimistic: false } : m)),

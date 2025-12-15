@@ -29,13 +29,29 @@ export type FeedAd = {
 export type FeedItem = (FeedPost & { type: "post" }) | FeedAd
 
 /**
- * Fixed ad placement algorithm - now inserts after post #1, then every 4 posts
- * Also uses backfill if we run out of ads
+ * Shuffles an array using Fisher-Yates algorithm
+ * Creates a new array to avoid mutating the original
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const shuffled = [...array]
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
+  }
+  return shuffled
+}
+
+/**
+ * Merges posts and ads with rotating ad placement
+ * Ads are shuffled on each call so different ads appear in different positions
+ * Inserts after post #1, then every 4 posts with fair rotation
  */
 export function mergePostsAndAds(posts: FeedPost[], ads: FeedAd[]): FeedItem[] {
   const result: FeedItem[] = []
   let postCounter = 0
   let adIndex = 0
+
+  const shuffledAds = shuffleArray(ads)
 
   // First ad after post #1, subsequent ads after every 4 posts
   const firstAdAfter = 1
@@ -49,9 +65,8 @@ export function mergePostsAndAds(posts: FeedPost[], ads: FeedAd[]): FeedItem[] {
     const shouldInsertAd =
       postCounter === firstAdAfter || (postCounter > firstAdAfter && (postCounter - firstAdAfter) % adInterval === 0)
 
-    if (shouldInsertAd && ads.length > 0) {
-      // Use the next ad, or backfill with oldest active ad (cycle through)
-      const ad = ads[adIndex % ads.length]
+    if (shouldInsertAd && shuffledAds.length > 0) {
+      const ad = shuffledAds[adIndex % shuffledAds.length]
       result.push(ad)
       adIndex++
     }
