@@ -25,6 +25,7 @@ interface IncidentCardProps {
       id: string
       display_name: string
       avatar_url?: string
+      town?: string
     }
     is_following?: boolean
     currentUserId?: string
@@ -203,7 +204,15 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
                   {incident.reporter.display_name?.charAt(0).toUpperCase() || "U"}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-xs text-gray-600">{incident.reporter.display_name}</span>
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-gray-600">{incident.reporter.display_name}</span>
+                {incident.reporter.town && (
+                  <>
+                    <span className="text-xs text-gray-400">•</span>
+                    <span className="text-xs text-gray-500">{incident.reporter.town}</span>
+                  </>
+                )}
+              </div>
             </div>
 
             {/* Don't show follow button on own posts */}

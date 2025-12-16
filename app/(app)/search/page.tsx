@@ -42,7 +42,7 @@ async function searchContent(query: string, filter: string) {
   if (filter === "all" || filter === "users") {
     const { data: users } = await supabase
       .from("profiles")
-      .select("id, display_name, full_name, avatar_url, trust_score")
+      .select("id, display_name, full_name, avatar_url, trust_score, town")
       .or(`display_name.ilike.%${query}%,full_name.ilike.%${query}%`)
       .limit(20)
 
@@ -101,14 +101,25 @@ export default async function SearchPage({
                   <div className="space-y-4">
                     <h3 className="font-semibold">Users</h3>
                     {users.map((user) => (
-                      <Card key={user.id}>
+                      <Card key={user.id} className="hover:bg-accent/50 transition-colors cursor-pointer">
                         <CardContent className="py-4">
-                          <a href={`/user-posts/${user.id}`} className="flex items-center gap-3">
-                            <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                              {user.display_name?.charAt(0).toUpperCase() || "?"}
-                            </div>
-                            <div>
+                          <a href={`/profile/${user.id}`} className="flex items-center gap-3">
+                            {user.avatar_url ? (
+                              <img
+                                src={user.avatar_url || "/placeholder.svg"}
+                                alt={user.display_name}
+                                className="h-12 w-12 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                                <span className="text-lg font-semibold text-primary">
+                                  {user.display_name?.charAt(0).toUpperCase() || "?"}
+                                </span>
+                              </div>
+                            )}
+                            <div className="flex-1">
                               <p className="font-semibold">{user.display_name || user.full_name}</p>
+                              {user.town && <p className="text-xs text-muted-foreground">{user.town}</p>}
                               <p className="text-sm text-muted-foreground">Trust Score: {user.trust_score}</p>
                             </div>
                           </a>
@@ -142,14 +153,25 @@ export default async function SearchPage({
               </Card>
             ) : (
               users.map((user) => (
-                <Card key={user.id}>
+                <Card key={user.id} className="hover:bg-accent/50 transition-colors cursor-pointer">
                   <CardContent className="py-4">
-                    <a href={`/user-posts/${user.id}`} className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
-                        {user.display_name?.charAt(0).toUpperCase() || "?"}
-                      </div>
-                      <div>
+                    <a href={`/profile/${user.id}`} className="flex items-center gap-3">
+                      {user.avatar_url ? (
+                        <img
+                          src={user.avatar_url || "/placeholder.svg"}
+                          alt={user.display_name}
+                          className="h-12 w-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="h-12 w-12 rounded-full bg-primary/20 flex items-center justify-center">
+                          <span className="text-lg font-semibold text-primary">
+                            {user.display_name?.charAt(0).toUpperCase() || "?"}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1">
                         <p className="font-semibold">{user.display_name || user.full_name}</p>
+                        {user.town && <p className="text-xs text-muted-foreground">{user.town}</p>}
                         <p className="text-sm text-muted-foreground">Trust Score: {user.trust_score}</p>
                       </div>
                     </a>

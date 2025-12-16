@@ -24,7 +24,7 @@ async function getFeedData(filter: string, userId?: string) {
       admin_verified,
       incident_types(label, severity),
       incident_media(path),
-      profiles!incidents_created_by_fkey(id, display_name, avatar_url)
+      profiles!incidents_created_by_fkey(id, display_name, avatar_url, town)
     `)
     .order("created_at", { ascending: false })
     .limit(40)
@@ -88,6 +88,7 @@ async function getFeedData(filter: string, userId?: string) {
               id: row.profiles.id,
               display_name: row.profiles.display_name || "Anonymous",
               avatar_url: row.profiles.avatar_url,
+              town: row.profiles.town || "Unknown",
             }
           : undefined,
         is_following: row.profiles ? followingSet.has(row.profiles.id) : false,

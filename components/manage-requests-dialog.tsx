@@ -109,9 +109,10 @@ export function ManageRequestsDialog({ groupId, groupName, triggerElement }: Man
     setApproveLoading(requestId)
     const result = await approveRequest(requestId, groupId)
     if (result.success) {
+      const userName = (result as any).user_name || displayName
       toast({
         title: "Member Added",
-        description: `You added ${displayName} to this group.`,
+        description: `You added ${userName} to this group.`,
       })
       await loadRequests()
       await loadMembers()

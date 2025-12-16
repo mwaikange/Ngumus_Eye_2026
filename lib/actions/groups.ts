@@ -218,11 +218,17 @@ export async function approveRequest(requestId: string, groupId: string) {
   }
 
   if (data && typeof data === "object" && "error" in data) {
+    console.error("[v0] RPC error:", data.code, data.error)
     return { error: data.error as string }
   }
 
   revalidatePath(`/groups/${groupId}`)
-  return data as { success: boolean; message: string }
+  return {
+    success: true,
+    message: data?.message || "Request approved",
+    user_name: data?.user_name,
+    group_name: data?.group_name,
+  }
 }
 
 export async function rejectRequest(requestId: string, groupId: string) {
