@@ -1,15 +1,18 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 interface FeedFiltersProps {
   currentFilter: string
+  onFilterChange: (filter: string) => void
 }
 
-export function FeedFilters({ currentFilter }: FeedFiltersProps) {
-  const router = useRouter()
+export function FeedFilters({ currentFilter, onFilterChange }: FeedFiltersProps) {
   const [activeFilter, setActiveFilter] = useState(currentFilter)
+
+  useEffect(() => {
+    setActiveFilter(currentFilter)
+  }, [currentFilter])
 
   const filters = [
     { id: "all", label: "All" },
@@ -20,7 +23,7 @@ export function FeedFilters({ currentFilter }: FeedFiltersProps) {
 
   const handleFilterChange = (filterId: string) => {
     setActiveFilter(filterId)
-    router.push(`/feed?filter=${filterId}`)
+    onFilterChange(filterId)
   }
 
   const activeIndex = filters.findIndex((f) => f.id === activeFilter)
