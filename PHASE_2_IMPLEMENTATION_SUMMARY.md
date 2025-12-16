@@ -163,6 +163,6 @@ All Phase 2 features are now implemented and ready for testing:
 4. Test group approval workflow
 5. Test comment image uploads
 6. Monitor ad view tracking data
-\`\`\`
+```
 
-\`\`\`tsx file="" isHidden
+```tsx file="" isHidden

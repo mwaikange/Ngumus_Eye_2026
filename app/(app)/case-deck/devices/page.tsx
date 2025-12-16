@@ -10,12 +10,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { registerDevice, getUserDevices, reportDeviceStolen } from "@/lib/actions/devices"
 import { useState, useEffect } from "react"
 import { Smartphone, Laptop, Watch, AlertTriangle, CheckCircle2, Plus } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export default function DeviceTrackingPage() {
   const [devices, setDevices] = useState<any[]>([])
   const [showForm, setShowForm] = useState(false)
   const [loading, setLoading] = useState(false)
   const [deviceType, setDeviceType] = useState("")
+  const { toast } = useToast()
 
   useEffect(() => {
     loadDevices()
@@ -34,15 +36,25 @@ export default function DeviceTrackingPage() {
     setLoading(false)
 
     if (result.success) {
+      toast({ title: "Device registered!", description: "Your device has been added successfully" })
       setShowForm(false)
+      setDeviceType("")
       loadDevices()
+    } else {
+      toast({ title: "Error", description: result.error || "Failed to register device", variant: "destructive" })
     }
   }
 
   async function handleReportStolen(deviceId: string) {
     if (confirm("Are you sure you want to report this device as stolen?")) {
-      await reportDeviceStolen(deviceId)
-      loadDevices()
+      const result = await reportDeviceStolen(deviceId)
+
+      if (result.success) {
+        toast({ title: "Device reported", description: "Your device has been marked as stolen" })
+        loadDevices()
+      } else {
+        toast({ title: "Error", description: result.error || "Failed to report device", variant: "destructive" })
+      }
     }
   }
 

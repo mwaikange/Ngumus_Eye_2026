@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+import { useToast } from "@/hooks/use-toast"
 
 import { AppHeader } from "@/components/app-header"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -20,6 +21,7 @@ export default function SupportPage() {
   const [requests, setRequests] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [requestType, setRequestType] = useState("")
+  const { toast } = useToast()
 
   useEffect(() => {
     loadRequests()
@@ -56,6 +58,7 @@ export default function SupportPage() {
 
     if (!user) {
       setLoading(false)
+      toast({ title: "Error", description: "You must be logged in to submit a request", variant: "destructive" })
       return
     }
 
@@ -69,11 +72,15 @@ export default function SupportPage() {
 
     setLoading(false)
 
-    if (!error) {
-      e.currentTarget.reset()
-      setRequestType("")
-      await loadRequests()
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" })
+      return
     }
+
+    toast({ title: "Request submitted!", description: "Your support request has been received successfully" })
+    e.currentTarget.reset()
+    setRequestType("")
+    await loadRequests()
   }
 
   return (

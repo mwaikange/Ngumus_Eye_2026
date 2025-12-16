@@ -36,7 +36,7 @@ You are building a comprehensive Admin Portal for NGUMU'S EYE, a community safet
 ### **Core Tables You Will Query/Update**
 
 #### **profiles** (Users)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY (references auth.users)
 display_name text
 phone text UNIQUE
@@ -47,10 +47,10 @@ work_geohash text
 is_banned boolean DEFAULT false
 created_at timestamptz
 updated_at timestamptz
-\`\`\`
+```
 
 #### **incidents** (Feed Posts)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 type_id int REFERENCES incident_types(id)
 title text
@@ -64,39 +64,39 @@ verification_level int (0-3)  -- 0=unverified, 3=fully verified
 created_by uuid REFERENCES profiles(id)
 created_at timestamptz
 updated_at timestamptz
-\`\`\`
+```
 
 #### **incident_media** (Post Images/Videos)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 incident_id uuid REFERENCES incidents(id) ON DELETE CASCADE
 path text  -- Vercel Blob URL
 sha256 text
 mime text
 created_at timestamptz
-\`\`\`
+```
 
 #### **incident_events** (Post Actions Log)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 incident_id uuid REFERENCES incidents(id)
 actor uuid REFERENCES profiles(id)
 kind text  -- 'admin_delete', 'admin_warn', 'admin_confirm', etc.
 data jsonb  -- {"reason": "...", "severity": "...", etc.}
 created_at timestamptz
-\`\`\`
+```
 
 #### **trust_score_history** (Trust Score Changes)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 user_id uuid REFERENCES profiles(id)
 delta int  -- Change amount (+5, -10, etc.)
 reason text
 created_at timestamptz
-\`\`\`
+```
 
 #### **incident_files** (Case Deck Cases)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 user_id uuid REFERENCES profiles(id)
 category text CHECK (category IN ('theft','gbv','harassment','missing_person','fraud','domestic','stolen_device','other'))
@@ -109,10 +109,10 @@ case_number text UNIQUE  -- Auto-generated: CASE-25-000001
 created_at timestamptz
 updated_at timestamptz
 closed_at timestamptz
-\`\`\`
+```
 
 #### **incident_file_updates** (Case Timeline)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 incident_file_id uuid REFERENCES incident_files(id)
 update_text text
@@ -120,10 +120,10 @@ media_urls text[]
 officer_id uuid REFERENCES profiles(id)
 is_public boolean DEFAULT false
 created_at timestamptz
-\`\`\`
+```
 
 #### **case_evidence** (Case Attachments)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 incident_file_id uuid REFERENCES incident_files(id)
 file_type text CHECK (file_type IN ('image','video','audio','document'))
@@ -133,10 +133,10 @@ file_size int
 description text
 uploaded_by uuid REFERENCES profiles(id)
 created_at timestamptz
-\`\`\`
+```
 
 #### **tracked_devices** (Stolen Device Tracking)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 user_id uuid REFERENCES profiles(id)
 device_name text
@@ -151,10 +151,10 @@ recovered_at timestamptz
 notes text
 created_at timestamptz
 updated_at timestamptz
-\`\`\`
+```
 
 #### **support_requests** (Counseling/Support)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 user_id uuid REFERENCES profiles(id)
 request_type text CHECK (request_type IN ('counseling','emergency','legal','other'))
@@ -167,10 +167,10 @@ completed_at timestamptz
 notes text
 created_at timestamptz
 updated_at timestamptz
-\`\`\`
+```
 
 #### **plans** (Subscription Packages)
-\`\`\`sql
+```sql
 id serial PRIMARY KEY
 code text UNIQUE
 label text
@@ -181,10 +181,10 @@ duration_length int
 package_type text CHECK (package_type IN ('individual','family','tourist'))
 description text
 features jsonb
-\`\`\`
+```
 
 **Correct Membership Packages** (as of latest fix):
-\`\`\`
+```
 Individual Plans:
 - N$70 / 30 days (monthly)
 - N$195 / 90 days (3 months)
@@ -198,10 +198,10 @@ Family Plans:
 
 Tourist Plans:
 - N$500 / 14 days (fixed from 7 days)
-\`\`\`
+```
 
 #### **user_subscriptions** (Active Subscriptions)
-\`\`\`sql
+```sql
 user_id uuid REFERENCES profiles(id)
 plan_id int REFERENCES plans(id)
 started_at timestamptz
@@ -211,42 +211,42 @@ auto_renew boolean
 payment_reference text
 created_at timestamptz
 PRIMARY KEY (user_id, plan_id, started_at)
-\`\`\`
+```
 
 #### **vouchers** (Subscription Codes)
-\`\`\`sql
+```sql
 code text PRIMARY KEY
 plan_id int REFERENCES plans(id)
 days int
 issued_to_email text
 redeemed_by uuid REFERENCES profiles(id)
 redeemed_at timestamptz
-\`\`\`
+```
 
 #### **reactions** (Post Reactions)
-\`\`\`sql
+```sql
 incident_id uuid REFERENCES incidents(id)
 user_id uuid REFERENCES profiles(id)
 kind text CHECK (kind IN ('seen','helpful','not_helpful','follow'))
 created_at timestamptz
 PRIMARY KEY (incident_id, user_id, kind)
-\`\`\`
+```
 
 #### **comments** (Post Comments)
-\`\`\`sql
+```sql
 id uuid PRIMARY KEY
 incident_id uuid REFERENCES incidents(id)
 author uuid REFERENCES profiles(id)
 body text
 created_at timestamptz
-\`\`\`
+```
 
 ---
 
 ## 🔧 NEW TABLES YOU MUST CREATE
 
 ### **admin_staff** (Admin Portal Users)
-\`\`\`sql
+```sql
 CREATE TABLE IF NOT EXISTS public.admin_staff (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   profile_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -262,7 +262,7 @@ CREATE TABLE IF NOT EXISTS public.admin_staff (
 CREATE INDEX idx_admin_staff_profile_id ON public.admin_staff(profile_id);
 CREATE INDEX idx_admin_staff_role ON public.admin_staff(role);
 CREATE INDEX idx_admin_staff_email ON public.admin_staff(email);
-\`\`\`
+```
 
 **Access Levels:**
 - **Level 1**: User Management, Feed Post Management, Profile
@@ -270,7 +270,7 @@ CREATE INDEX idx_admin_staff_email ON public.admin_staff(email);
 - **Level 3**: Everything + App Management (full admin)
 
 ### **ad_inventory** (Admin Uploaded Ads)
-\`\`\`sql
+```sql
 CREATE TABLE IF NOT EXISTS public.ad_inventory (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   title text NOT NULL,
@@ -287,10 +287,10 @@ CREATE TABLE IF NOT EXISTS public.ad_inventory (
 );
 
 CREATE INDEX idx_ad_inventory_active ON public.ad_inventory(is_active, display_priority DESC);
-\`\`\`
+```
 
 ### **system_notifications** (Admin → User Messages)
-\`\`\`sql
+```sql
 CREATE TABLE IF NOT EXISTS public.system_notifications (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   recipient_id uuid REFERENCES public.profiles(id) ON DELETE CASCADE,
@@ -305,14 +305,14 @@ CREATE TABLE IF NOT EXISTS public.system_notifications (
 
 CREATE INDEX idx_system_notifications_recipient ON public.system_notifications(recipient_id, created_at DESC);
 CREATE INDEX idx_system_notifications_read ON public.system_notifications(recipient_id, read_at);
-\`\`\`
+```
 
 ---
 
 ## 🛡️ RLS POLICIES
 
 ### **Admin Staff Access**
-\`\`\`sql
+```sql
 -- Admin staff can only be managed by Level 3 admins
 ALTER TABLE public.admin_staff ENABLE ROW LEVEL SECURITY;
 
@@ -328,10 +328,10 @@ CREATE POLICY "Level 3 admins can manage staff" ON public.admin_staff
 CREATE POLICY "Staff can view their own record" ON public.admin_staff
   FOR SELECT TO authenticated
   USING (profile_id = (SELECT auth.uid()));
-\`\`\`
+```
 
 ### **Ad Inventory**
-\`\`\`sql
+```sql
 ALTER TABLE public.ad_inventory ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Level 2+ can manage ads" ON public.ad_inventory
@@ -342,10 +342,10 @@ CREATE POLICY "Level 2+ can manage ads" ON public.ad_inventory
       WHERE profile_id = (SELECT auth.uid()) AND access_level >= 2
     )
   );
-\`\`\`
+```
 
 ### **System Notifications**
-\`\`\`sql
+```sql
 ALTER TABLE public.system_notifications ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users can read their own notifications" ON public.system_notifications
@@ -360,14 +360,14 @@ CREATE POLICY "Staff can send notifications" ON public.system_notifications
       WHERE profile_id = (SELECT auth.uid()) AND is_active = true
     )
   );
-\`\`\`
+```
 
 ---
 
 ## 🏗️ ADMIN PORTAL ARCHITECTURE
 
 ### **Project Structure**
-\`\`\`
+```
 admin-portal/
 ├── app/
 │   ├── admin/
@@ -423,7 +423,7 @@ admin-portal/
 │       ├── access-control.ts  -- Permission checking
 │       └── email.ts  -- Email service for case assignments
 └── middleware.ts  -- Route protection for /admin
-\`\`\`
+```
 
 ---
 
@@ -442,7 +442,7 @@ admin-portal/
 - Pagination (50 users per page)
 
 **Query Logic:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-users.ts
 export async function getUserList({
   search = '',
@@ -501,10 +501,10 @@ export async function getUserList({
   
   return { users: data, total: count, page, perPage }
 }
-\`\`\`
+```
 
 **Data Shape:**
-\`\`\`typescript
+```typescript
 interface UserRow {
   id: string  // UUID
   display_name: string | null
@@ -517,7 +517,7 @@ interface UserRow {
   subscription_plan?: string  // "Individual Monthly"
   days_left?: number
 }
-\`\`\`
+```
 
 **Actions:**
 - View user detail → `/admin/users/[id]`
@@ -545,7 +545,7 @@ interface UserRow {
 - Sort: Most Recent / Most Reactions / Most Comments
 
 **Query Logic:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-feed.ts
 export async function getFeedPosts({
   filter = 'all',
@@ -593,7 +593,7 @@ export async function getFeedPosts({
   if (error) throw error
   return data
 }
-\`\`\`
+```
 
 ### **Process Post Dialog** (Popup Overlay)
 
@@ -638,9 +638,9 @@ export async function getFeedPosts({
    - Opens severity selector popup
 
 **Severity Selector (for Map Display):**
-\`\`\`typescript
+```typescript
 type Severity = 'low' | 'medium' | 'high' | 'critical'
-\`\`\`
+```
 - Stored in `incident_types.severity` or `incidents.verification_level`
 - Controls map pin color:
   - Low: Yellow
@@ -649,7 +649,7 @@ type Severity = 'low' | 'medium' | 'high' | 'critical'
   - Critical: Purple
 
 **Server Actions:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-feed.ts
 
 export async function deletePost(
@@ -773,7 +773,7 @@ export async function sendUserMessage(
   
   return { success: true }
 }
-\`\`\`
+```
 
 ---
 
@@ -804,7 +804,7 @@ export async function sendUserMessage(
 - Date Range
 
 **Query Logic:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-cases.ts
 export async function getCaseList({
   status = 'all',
@@ -866,14 +866,14 @@ export async function getCaseList({
   if (error) throw error
   return data
 }
-\`\`\`
+```
 
 ### **Case Detail View** (Large Popup/Modal)
 
 **Triggered by:** Click "View" button
 
 **UI Layout:**
-\`\`\`
+```
 ┌─────────────────────────────────────────────────┐
 │  CASE-25-000123                   [X] Close     │
 │  Status: In Progress  Priority: High            │
@@ -910,10 +910,10 @@ export async function getCaseList({
 │  [Download PDF]  [Email Case]  [Close Case]     │
 │                                                  │
 └─────────────────────────────────────────────────┘
-\`\`\`
+```
 
 **Server Actions:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-cases.ts
 
 export async function assignCase(
@@ -1016,7 +1016,7 @@ export async function emailCase(
   // Send case details via email
   // Implementation: Use email service (SendGrid, Resend, etc.)
 }
-\`\`\`
+```
 
 ---
 
@@ -1040,7 +1040,7 @@ export async function emailCase(
 - Generate button
 
 **Logic:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-subscriptions.ts
 
 // **REPLACE TWILIO SENDSMS WITH THIS**
@@ -1104,7 +1104,7 @@ function generateRandomString(length: number): string {
   }
   return result
 }
-\`\`\`
+```
 
 #### **B. Subscription List**
 
@@ -1129,7 +1129,7 @@ function generateRandomString(length: number): string {
   - Sends SMS with CTA to renew
 
 **Query Logic:**
-\`\`\`typescript
+```typescript
 export async function getSubscriptionList({
   status = 'all',
   page = 1
@@ -1190,7 +1190,7 @@ export async function sendRenewalReminder(userId: string, phone: string, daysLef
   
   return { success: true }
 }
-\`\`\`
+```
 
 ---
 
@@ -1217,7 +1217,7 @@ export async function sendRenewalReminder(userId: string, phone: string, daysLef
 - Active (toggle switch)
 
 **Upload Logic:**
-\`\`\`typescript
+```typescript
 // app/api/admin/upload-ad/route.ts
 import { put } from '@vercel/blob'
 
@@ -1258,7 +1258,7 @@ export async function POST(request: Request) {
   
   return Response.json({ success: true, ad: data })
 }
-\`\`\`
+```
 
 #### **B. Ad List & Management**
 
@@ -1279,7 +1279,7 @@ export async function POST(request: Request) {
 
 Ads must appear in the mobile app feed between posts at random intervals.
 
-\`\`\`typescript
+```typescript
 // Mobile app: lib/actions/feed.ts (existing file - you must ADD this logic)
 
 export async function getFeedWithAds(page: number = 1) {
@@ -1315,10 +1315,10 @@ export async function getFeedWithAds(page: number = 1) {
   
   return feedWithAds
 }
-\`\`\`
+```
 
 **Ad Click Tracking:**
-\`\`\`typescript
+```typescript
 // Mobile app: lib/actions/ads.ts (NEW FILE)
 
 export async function trackAdClick(adId: string) {
@@ -1338,7 +1338,7 @@ BEGIN
   WHERE id = ad_id;
 END;
 $$ LANGUAGE plpgsql;
-\`\`\`
+```
 
 ---
 
@@ -1364,7 +1364,7 @@ $$ LANGUAGE plpgsql;
 - Add button
 
 **Logic:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-staff.ts
 
 // **REPLACE TWILIO SENDSMS WITH THIS FOR CREDENTIALS EMAIL**
@@ -1458,7 +1458,7 @@ function generateSecurePassword(): string {
   }
   return password
 }
-\`\`\`
+```
 
 #### **B. Staff List**
 
@@ -1472,7 +1472,7 @@ function generateSecurePassword(): string {
   - Actions: Reset Password / Resend Credentials / Block/Unblock / Delete
 
 **Reset Password:**
-\`\`\`typescript
+```typescript
 export async function resetStaffPassword(staffId: string, email: string, staffPhone?: string) {
   const supabase = await createAdminClient()
   
@@ -1512,7 +1512,7 @@ export async function resetStaffPassword(staffId: string, email: string, staffPh
   
   return { success: true }
 }
-\`\`\`
+```
 
 ### **Page: `/admin/app-management/providers`**
 
@@ -1531,7 +1531,7 @@ export async function resetStaffPassword(staffId: string, email: string, staffPh
 - Add button
 
 **Email Template (when case assigned):**
-\`\`\`
+```
 Subject: New Case Assignment - CASE-25-000123
 
 Dear [Provider Name],
@@ -1553,7 +1553,7 @@ Please contact the user directly or respond to this email with updates.
 
 Thank you,
 NGUMU'S EYE Admin Team
-\`\`\`
+```
 
 ---
 
@@ -1574,7 +1574,7 @@ NGUMU'S EYE Admin Team
   - Change Password button
 
 **Server Action:**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-profile.ts
 
 export async function changeAdminPassword({
@@ -1606,7 +1606,7 @@ export async function changeAdminPassword({
   
   return { success: true }
 }
-\`\`\`
+```
 
 ---
 
@@ -1614,7 +1614,7 @@ export async function changeAdminPassword({
 
 ### **Middleware Protection**
 
-\`\`\`typescript
+```typescript
 // middleware.ts
 
 import { createServerClient } from '@supabase/ssr'
@@ -1680,11 +1680,11 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: ['/admin/:path*']
 }
-\`\`\`
+```
 
 ### **Access Control Helper**
 
-\`\`\`typescript
+```typescript
 // lib/utils/access-control.ts
 
 export async function requireAccessLevel(minLevel: 1 | 2 | 3) {
@@ -1709,7 +1709,7 @@ export async function requireAccessLevel(minLevel: 1 | 2 | 3) {
   
   return staff
 }
-\`\`\`
+```
 
 ---
 
@@ -1718,7 +1718,7 @@ export async function requireAccessLevel(minLevel: 1 | 2 | 3) {
 ### **Required Email Templates**
 
 1. **Staff Credentials Email**
-\`\`\`typescript
+```typescript
 interface StaffCredentialsEmailData {
   fullName: string
   email: string
@@ -1736,10 +1736,10 @@ async function sendStaffCredentialsEmail(email: string, data: StaffCredentialsEm
   // Placeholder for actual email sending if needed
   console.log('Sending Staff Credentials Email to:', email, data);
 }
-\`\`\`
+```
 
 2. **Case Assignment Email** (Service Providers)
-\`\`\`typescript
+```typescript
 interface CaseAssignmentEmailData {
   providerName: string
   caseNumber: string
@@ -1770,7 +1770,7 @@ async function sendCaseAssignmentEmail(email: string, data: CaseAssignmentEmailD
     `
   })
 }
-\`\`\`
+```
 
 3. **Password Reset Email**
    *Note: This functionality is now handled via SMS.*
@@ -1784,13 +1784,13 @@ Use **SMSPortal REST API** for all SMS functionality. The integration uses Supab
 
 ### **Required Environment Variables**
 Add these to your Supabase project secrets:
-\`\`\`
+```
 SMSPORTAL_CLIENT_ID=your_client_id_here
 SMSPORTAL_API_SECRET=your_api_secret_here
-\`\`\`
+```
 
 ### **Database Table for SMS Logging**
-\`\`\`sql
+```sql
 CREATE TABLE IF NOT EXISTS public.sms_logs (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID REFERENCES auth.users(id),
@@ -1817,13 +1817,13 @@ CREATE POLICY "Admin can view all SMS logs"
       WHERE profile_id = (SELECT auth.uid()) AND access_level >= 1 -- Assuming any admin can view logs
     )
   );
-\`\`\`
+```
 
 ### **Edge Function Implementation**
 
 **File: `supabase/functions/send-sms/index.ts`**
 
-\`\`\`typescript
+```typescript
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
@@ -1958,13 +1958,13 @@ serve(async (req) => {
     );
   }
 });
-\`\`\`
+```
 
 ### **Client-Side Utility**
 
 **File: `lib/utils/sms.ts`**
 
-\`\`\`typescript
+```typescript
 import { createClient } from '@/lib/supabase/server'
 
 export interface SMSOptions {
@@ -1993,12 +1993,12 @@ export async function sendSMS(options: SMSOptions) {
     throw error;
   }
 }
-\`\`\`
+```
 
 ### **Usage Examples in Admin Portal**
 
 #### **1. Voucher Code Generation (Subscription Management)**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-subscriptions.ts
 
 // **REPLACE TWILIO SENDSMS WITH THIS**
@@ -2062,10 +2062,10 @@ function generateRandomString(length: number): string {
   }
   return result
 }
-\`\`\`
+```
 
 #### **2. Subscription Expiry Reminder**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-subscriptions.ts
 
 // **REPLACE TWILIO SENDSMS WITH THIS**
@@ -2084,10 +2084,10 @@ export async function sendRenewalReminder(userId: string, phone: string, daysLef
   
   return { success: true }
 }
-\`\`\`
+```
 
 #### **3. Case Assignment Notification**
-\`\`\`typescript
+```typescript
 // lib/actions/admin-cases.ts
 
 // **REPLACE TWILIO SENDSMS WITH THIS FOR CASE ASSIGNMENT**
@@ -2116,7 +2116,7 @@ async function assignCaseToInvestigator(
   
   return { success: true }
 }
-\`\`\`
+```
 
 ### **CRITICAL: SMSPortal Implementation Notes**
 
@@ -2132,7 +2132,7 @@ async function assignCaseToInvestigator(
    - Content-Type: application/json
 
 4. **Payload Structure**:
-   \`\`\`json
+   ```json
    {
      "messages": [
        {
@@ -2141,7 +2141,7 @@ async function assignCaseToInvestigator(
        }
      ]
    }
-   \`\`\`
+   ```
 
 5. **Database Logging**: All SMS attempts are logged to `sms_logs` table
    - Status tracking: queued → sent/failed
@@ -2155,7 +2155,7 @@ async function assignCaseToInvestigator(
 ### **Testing SMS Integration**
 
 1. **Test with curl**:
-\`\`\`bash
+```bash
 curl -X POST https://rest.smsportal.com/v1/bulkmessages \
   -H "Authorization: Basic $(echo -n 'CLIENT_ID:API_SECRET' | base64)" \
   -H "Content-Type: application/json" \
@@ -2165,14 +2165,14 @@ curl -X POST https://rest.smsportal.com/v1/bulkmessages \
       "destination": "+264812345678"
     }]
   }'
-\`\`\`
+```
 
 2. **Check SMS logs in database**:
-\`\`\`sql
+```sql
 SELECT * FROM public.sms_logs 
 ORDER BY created_at DESC 
 LIMIT 10;
-\`\`\`
+```
 
 3. **Monitor Edge Function logs** in Supabase dashboard
 
@@ -2194,7 +2194,7 @@ LIMIT 10;
 
 Use the same color system as the mobile app:
 
-\`\`\`css
+```css
 /* globals.css */
 @theme inline {
   /* Primary Colors */
@@ -2233,7 +2233,7 @@ Use the same color system as the mobile app:
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
 }
-\`\`\`
+```
 
 ### **Component Library**
 
@@ -2255,7 +2255,7 @@ Use shadcn/ui components:
 
 ### **Layout Structure**
 
-\`\`\`
+```
 ┌──────────────────────────────────────────────────┐
 │  NGUMU Logo     [User Avatar ▼]  [Logout]       │
 ├────────┬─────────────────────────────────────────┤
@@ -2272,10 +2272,10 @@ Use shadcn/ui components:
 │ - Prof │                                          │
 │        │                                          │
 └────────┴──────────────────────────────────────────┘
-\`\`\`
+```
 
 **Sidebar Navigation:**
-\`\`\`typescript
+```typescript
 const navigationItems = [
   { label: 'Dashboard', href: '/admin', icon: LayoutDashboard, level: 1 },
   { label: 'Users', href: '/admin/users', icon: Users, level: 1 },
@@ -2286,7 +2286,7 @@ const navigationItems = [
   { label: 'App Management', href: '/admin/app-management', icon: Settings, level: 3 },
   { label: 'Profile', href: '/admin/profile', icon: User, level: 1 }
 ]
-\`\`\`
+```
 
 ---
 
@@ -2377,17 +2377,17 @@ const navigationItems = [
 ## 📚 DATA CONTRACTS
 
 ### **API Response Format**
-\`\`\`typescript
+```typescript
 interface APIResponse<T> {
   success: boolean
   data?: T
   error?: string
   message?: string
 }
-\`\`\`
+```
 
 ### **User Data Shape**
-\`\`\`typescript
+```typescript
 interface AdminUser {
   id: string
   display_name: string | null
@@ -2400,10 +2400,10 @@ interface AdminUser {
   days_left?: number
   created_at: string
 }
-\`\`\`
+```
 
 ### **Feed Post Data Shape**
-\`\`\`typescript
+```typescript
 interface AdminFeedPost {
   id: string
   title: string
@@ -2428,10 +2428,10 @@ interface AdminFeedPost {
   reaction_count: number
   comment_count: number
 }
-\`\`\`
+```
 
 ### **Case Data Shape**
-\`\`\`typescript
+```typescript
 interface AdminCase {
   id: string
   case_number: string
@@ -2468,7 +2468,7 @@ interface AdminCase {
   created_at: string
   closed_at?: string
 }
-\`\`\`
+```
 
 ---
 

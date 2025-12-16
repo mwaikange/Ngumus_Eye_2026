@@ -39,11 +39,13 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
       created_by,
       area_radius_m,
       verification_level,
+      expires_at,
       incident_types(label, severity),
       incident_media(path),
-      profiles!incidents_created_by_fkey(id, display_name, avatar_url)
+      profiles!incidents_created_by_fkey(id, display_name, avatar_url, trust_score)
     `)
     .eq("created_by", id)
+    .gt("expires_at", new Date().toISOString()) // Only show non-expired posts
     .order("created_at", { ascending: false })
     .limit(50)
 
@@ -73,12 +75,15 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
               id: row.profiles.id,
               display_name: row.profiles.display_name || "Anonymous",
               avatar_url: row.profiles.avatar_url,
+              trust_score: row.profiles.trust_score,
             }
           : undefined,
         is_following: false,
         currentUserId: currentUser.id,
       }
     }) || []
+
+  const activePostCount = posts.length
 
   return (
     <div className="min-h-screen bg-background">
@@ -96,6 +101,7 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
               <div className="flex-1">
                 <h2 className="text-xl font-semibold">{profile.display_name || profile.full_name}</h2>
                 <p className="text-sm text-muted-foreground">Trust Score: {profile.trust_score}</p>
+                <p className="text-sm text-muted-foreground">{activePostCount} Active Posts</p>
               </div>
               <Button variant="outline" asChild>
                 <a href="/feed">Back to Feed</a>
@@ -105,11 +111,11 @@ export default async function UserProfilePage({ params }: { params: Promise<{ id
         </Card>
 
         <div className="space-y-4">
-          <h3 className="font-semibold text-lg">{posts.length} Posts</h3>
+          <h3 className="font-semibold text-lg">{activePostCount} Active Posts</h3>
           {posts.length === 0 ? (
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground">
-                <p>No posts yet</p>
+                <p>No active posts</p>
               </CardContent>
             </Card>
           ) : (
