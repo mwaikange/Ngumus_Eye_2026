@@ -15,7 +15,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Settings, Check, X, Loader2, Users, Trash2 } from "lucide-react"
-import { getPendingRequests, approveRequest, rejectRequest, getTrustScore } from "@/lib/actions/groups"
+import { getPendingRequests, approveRequest, rejectRequest, getTrustScore, removeMember } from "@/lib/actions/groups"
 import { useToast } from "@/hooks/use-toast"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createClient } from "@/lib/supabase/client"
@@ -147,12 +147,12 @@ export function ManageRequestsDialog({ groupId, groupName, triggerElement }: Man
   async function handleRemoveMember(userId: string, displayName: string) {
     setRemoveLoading(userId)
 
-    const { error } = await supabase.from("group_members").delete().eq("group_id", groupId).eq("user_id", userId)
+    const result = await removeMember(groupId, userId)
 
-    if (error) {
+    if (result.error) {
       toast({
         title: "Error",
-        description: error.message,
+        description: result.error,
         variant: "destructive",
       })
     } else {

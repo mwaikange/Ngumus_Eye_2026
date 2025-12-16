@@ -51,49 +51,24 @@ export async function joinGroup(groupId: string) {
     return { error: "Not authenticated" }
   }
 
-  const { data: group } = await supabase.from("groups").select("visibility, created_by").eq("id", groupId).single()
+  const { data, error } = await supabase.rpc("request_join_group", {
+    p_group_id: groupId,
+  })
 
-  if (!group) {
-    return { error: "Group not found" }
+  if (error) {
+    console.error("[v0] Error joining group:", error)
+    return { error: error.message }
   }
 
-  if (group.visibility === "public") {
-    const { error } = await supabase.from("group_members").insert({
-      group_id: groupId,
-      user_id: user.id,
-      role: "member",
-      status: "approved",
-      approved_at: new Date().toISOString(),
-      approved_by: group.created_by,
-    })
-
-    if (error) {
-      if (error.code === "23505") {
-        return { error: "You are already a member of this group" }
-      }
-      return { error: error.message }
-    }
-
-    revalidatePath("/groups")
-    revalidatePath(`/groups/${groupId}`)
-
-    return { success: true, message: "Successfully joined group!" }
-  } else {
-    // This bypasses RLS issues and handles duplicate checking atomically
-    const { data, error } = await supabase.rpc("join_group_safe", {
-      p_group_id: groupId,
-    })
-
-    if (error) {
-      console.error("[v0] Error joining group:", error)
-      return { error: error.message }
-    }
-
-    revalidatePath("/groups")
-    revalidatePath(`/groups/${groupId}`)
-
-    return data
+  // Check if the response indicates an error
+  if (data && typeof data === "object" && "error" in data) {
+    return { error: data.error as string }
   }
+
+  revalidatePath("/groups")
+  revalidatePath(`/groups/${groupId}`)
+
+  return data as { success: boolean; message: string; is_member?: boolean; request_pending?: boolean }
 }
 
 export async function leaveGroup(groupId: string) {
@@ -233,36 +208,21 @@ export async function approveRequest(requestId: string, groupId: string) {
     return { error: "Not authenticated" }
   }
 
-  // Get request details
-  const { data: request } = await supabase.from("group_requests").select("user_id").eq("id", requestId).single()
-
-  if (!request) {
-    return { error: "Request not found" }
-  }
-
-  // Update request status
-  const { error: updateError } = await supabase
-    .from("group_requests")
-    .update({ status: "approved", updated_at: new Date().toISOString() })
-    .eq("id", requestId)
-
-  if (updateError) {
-    return { error: updateError.message }
-  }
-
-  // Add user as member
-  const { error: insertError } = await supabase.from("group_members").insert({
-    group_id: groupId,
-    user_id: request.user_id,
-    role: "member",
+  const { data, error } = await supabase.rpc("approve_group_request", {
+    p_request_id: requestId,
   })
 
-  if (insertError) {
-    return { error: insertError.message }
+  if (error) {
+    console.error("[v0] Error approving request:", error)
+    return { error: error.message }
+  }
+
+  if (data && typeof data === "object" && "error" in data) {
+    return { error: data.error as string }
   }
 
   revalidatePath(`/groups/${groupId}`)
-  return { success: true, message: "Request approved and user added to group" }
+  return data as { success: boolean; message: string }
 }
 
 export async function rejectRequest(requestId: string, groupId: string) {
@@ -359,4 +319,33 @@ export async function deleteGroupMessage(messageId: string, groupId: string) {
   revalidatePath(`/groups/${groupId}`)
 
   return { success: true }
+}
+
+export async function removeMember(groupId: string, userId: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Not authenticated" }
+  }
+
+  const { data, error } = await supabase.rpc("remove_group_member", {
+    p_group_id: groupId,
+    p_user_id_to_remove: userId,
+  })
+
+  if (error) {
+    console.error("[v0] Error removing member:", error)
+    return { error: error.message }
+  }
+
+  if (data && typeof data === "object" && "error" in data) {
+    return { error: data.error as string }
+  }
+
+  revalidatePath(`/groups/${groupId}`)
+  return data as { success: boolean; message: string }
 }
