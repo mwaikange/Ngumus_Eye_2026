@@ -270,7 +270,6 @@ export default function SubscribePage() {
         .update({
           redeemed_by: user.id,
           redeemed_at: new Date().toISOString(),
-          email: user.email || null, // Store user's email
         })
         .eq("code", voucherCode.trim().toUpperCase())
         .is("redeemed_by", null) // Double-check it's still unredeemed
@@ -302,7 +301,6 @@ export default function SubscribePage() {
           .update({
             redeemed_by: null,
             redeemed_at: null,
-            email: null,
           })
           .eq("code", voucherCode.trim().toUpperCase())
 
