@@ -265,6 +265,23 @@ export default function SubscribePage() {
         return
       }
 
+      const { error: voucherUpdateError } = await supabase
+        .from("vouchers")
+        .update({
+          redeemed_by: user.id,
+          redeemed_at: new Date().toISOString(),
+          email: user.email || null, // Store user's email
+        })
+        .eq("code", voucherCode.trim().toUpperCase())
+        .is("redeemed_by", null) // Double-check it's still unredeemed
+
+      if (voucherUpdateError) {
+        console.error("[v0] Voucher update error:", voucherUpdateError)
+        setVoucherError("Failed to redeem voucher. It may have already been used.")
+        setIsRedeemingVoucher(false)
+        return
+      }
+
       // Create subscription
       const expiresAt = new Date()
       expiresAt.setDate(expiresAt.getDate() + (voucher.days || voucher.plans?.period_days || 30))
@@ -280,19 +297,19 @@ export default function SubscribePage() {
 
       if (subError) {
         console.error("[v0] Subscription creation error:", subError)
-        setVoucherError("Failed to activate subscription")
+        await supabase
+          .from("vouchers")
+          .update({
+            redeemed_by: null,
+            redeemed_at: null,
+            email: null,
+          })
+          .eq("code", voucherCode.trim().toUpperCase())
+
+        setVoucherError("Failed to activate subscription. Please try again.")
         setIsRedeemingVoucher(false)
         return
       }
-
-      // Mark voucher as redeemed
-      await supabase
-        .from("vouchers")
-        .update({
-          redeemed_by: user.id,
-          redeemed_at: new Date().toISOString(),
-        })
-        .eq("code", voucherCode.trim().toUpperCase())
 
       toast({
         title: "Voucher redeemed!",
@@ -302,6 +319,7 @@ export default function SubscribePage() {
       setVoucherCode("")
       fetchData() // Refresh subscription data
     } catch (error) {
+      console.error("[v0] Unexpected error during redemption:", error)
       setVoucherError("An error occurred. Please try again.")
     } finally {
       setIsRedeemingVoucher(false)

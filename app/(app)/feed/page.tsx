@@ -114,7 +114,7 @@ export default function FeedPage() {
       const [incidentsResult, adsResult] = await Promise.all([
         query,
         filter === "all"
-          ? supabase.from("advertisements").select("*").eq("is_active", true).gte("end_date", new Date().toISOString())
+          ? supabase.from("ad_inventory").select("*").eq("is_active", true).gte("end_date", new Date().toISOString())
           : Promise.resolve({ data: [] }),
       ])
 
