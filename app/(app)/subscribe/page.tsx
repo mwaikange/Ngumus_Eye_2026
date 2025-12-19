@@ -242,7 +242,13 @@ export default function SubscribePage() {
         return
       }
 
-      const userEmail = user.email || ""
+      const { data: profile } = await supabase.from("profiles").select("id, email").eq("id", user.id).single()
+
+      if (!profile) {
+        setVoucherError("Profile not found")
+        setIsRedeemingVoucher(false)
+        return
+      }
 
       // Check if voucher exists and is unused
       const { data: voucher, error: voucherCheckError } = await supabase
@@ -270,11 +276,11 @@ export default function SubscribePage() {
       const { error: voucherUpdateError } = await supabase
         .from("vouchers")
         .update({
-          redeemed_by: userEmail,
+          redeemed_by: profile.id,
+          redeemed_by_email: profile.email,
           redeemed_at: new Date().toISOString(),
         })
         .eq("code", voucherCode.trim().toUpperCase())
-        .is("redeemed_by", null) // Double-check it's still unredeemed
 
       if (voucherUpdateError) {
         console.error("[v0] Voucher update error:", voucherUpdateError)
@@ -302,6 +308,7 @@ export default function SubscribePage() {
           .from("vouchers")
           .update({
             redeemed_by: null,
+            redeemed_by_email: null,
             redeemed_at: null,
           })
           .eq("code", voucherCode.trim().toUpperCase())
