@@ -242,6 +242,8 @@ export default function SubscribePage() {
         return
       }
 
+      const userEmail = user.email || ""
+
       // Check if voucher exists and is unused
       const { data: voucher, error: voucherCheckError } = await supabase
         .from("vouchers")
@@ -268,7 +270,7 @@ export default function SubscribePage() {
       const { error: voucherUpdateError } = await supabase
         .from("vouchers")
         .update({
-          redeemed_by: user.id,
+          redeemed_by: userEmail,
           redeemed_at: new Date().toISOString(),
         })
         .eq("code", voucherCode.trim().toUpperCase())
