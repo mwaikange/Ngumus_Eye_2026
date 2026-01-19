@@ -110,7 +110,25 @@ export function GroupChat({ groupId, userId, isMember }: { groupId: string; user
       profiles: profileMap.get(msg.user_id) || { display_name: "Unknown", trust_score: 0 },
     })) as Message[]
 
-    setMessages(messagesWithProfiles)
+    // Merge with any pending optimistic messages that haven't been confirmed yet
+    setMessages((prev) => {
+      // Keep optimistic messages that are still pending (sending)
+      const pendingOptimistic = prev.filter((m) => m.isOptimistic === true)
+      
+      // Filter out temp messages that now exist in the real data (by matching content/time)
+      const uniqueOptimistic = pendingOptimistic.filter((opt) => {
+        // Check if any real message matches this optimistic one
+        const hasMatch = messagesWithProfiles.some(
+          (real) =>
+            real.user_id === opt.user_id &&
+            real.message === opt.message &&
+            Math.abs(new Date(real.created_at).getTime() - new Date(opt.created_at).getTime()) < 60000
+        )
+        return !hasMatch
+      })
+      
+      return [...messagesWithProfiles, ...uniqueOptimistic]
+    })
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,7 +215,16 @@ export function GroupChat({ groupId, userId, isMember }: { groupId: string; user
       }
 
       console.log("[v0] Message sent successfully")
-      setMessages((prev) => prev.filter((m) => m.id !== optimisticId))
+      
+      // Update optimistic message to show as sent (not pending)
+      // Keep it visible - real-time subscription or next fetch will replace with actual data
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === optimisticId
+            ? { ...m, isOptimistic: false, image_url: imageUrl || m.image_url }
+            : m
+        )
+      )
     } catch (error) {
       console.error("[v0] Error in handleSend:", error)
       setMessages((prev) =>
