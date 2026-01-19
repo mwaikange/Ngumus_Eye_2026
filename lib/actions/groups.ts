@@ -355,3 +355,88 @@ export async function removeMember(groupId: string, userId: string) {
   revalidatePath(`/groups/${groupId}`)
   return data as { success: boolean; message: string }
 }
+
+export async function reportGroup(groupId: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { error: "Not authenticated" }
+  }
+
+  // Check if user is a member
+  const { data: membership } = await supabase
+    .from("group_members")
+    .select("user_id")
+    .eq("group_id", groupId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (!membership) {
+    return { error: "You must be a member to report this group" }
+  }
+
+  // Check if already reported
+  const { data: existingReport } = await supabase
+    .from("group_reports")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (existingReport) {
+    return { error: "You have already reported this group" }
+  }
+
+  // Insert the report
+  const { error: reportError } = await supabase.from("group_reports").insert({
+    group_id: groupId,
+    user_id: user.id,
+  })
+
+  if (reportError) {
+    return { error: reportError.message }
+  }
+
+  // Increment negative_reports count
+  const { error: updateError } = await supabase.rpc("increment_group_reports", {
+    p_group_id: groupId,
+  })
+
+  if (updateError) {
+    // Fallback: try direct update
+    await supabase
+      .from("groups")
+      .update({ negative_reports: supabase.rpc("coalesce_add", { val: 1 }) })
+      .eq("id", groupId)
+  }
+
+  revalidatePath("/groups")
+  revalidatePath(`/groups/${groupId}`)
+
+  return { success: true, message: "Group reported successfully" }
+}
+
+export async function hasUserReportedGroup(groupId: string) {
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return { hasReported: false }
+  }
+
+  const { data } = await supabase
+    .from("group_reports")
+    .select("id")
+    .eq("group_id", groupId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  return { hasReported: !!data }
+}

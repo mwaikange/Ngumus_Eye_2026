@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/server"
-import { Users, MapPin, Shield, Plus, Globe } from "lucide-react"
+import { Users, MapPin, Shield, Plus, Globe, Flag } from "lucide-react"
 import Link from "next/link"
+import { ReportGroupButton } from "@/components/report-group-button"
 
 export default async function GroupsPage() {
   const supabase = await createClient()
@@ -40,6 +41,14 @@ export default async function GroupsPage() {
 
   const requestSet = new Set(requests?.map((r) => r.group_id) || [])
 
+  // Get user's reports
+  const { data: userReports } = await supabase
+    .from("group_reports")
+    .select("group_id")
+    .eq("user_id", user?.id || "")
+
+  const reportedSet = new Set(userReports?.map((r) => r.group_id) || [])
+
   const groupsWithData = (groups || []).map((group) => ({
     ...group,
     creatorName: profileMap.get(group.created_by) || "Unknown",
@@ -47,6 +56,8 @@ export default async function GroupsPage() {
     userRole: membershipMap.get(group.id),
     isCreator: group.created_by === user?.id,
     hasPendingRequest: requestSet.has(group.id),
+    hasReported: reportedSet.has(group.id),
+    isMember: !!membershipMap.get(group.id) || group.created_by === user?.id,
   }))
 
   return (
@@ -103,13 +114,19 @@ export default async function GroupsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground">
                     <div className="flex items-center gap-1">
                       <Users className="h-4 w-4" />
                       <span>
                         {group.memberCount} {group.memberCount === 1 ? "member" : "members"}
                       </span>
                     </div>
+                    {group.isMember && !group.isCreator && (
+                      <ReportGroupButton
+                        groupId={group.id}
+                        hasReported={group.hasReported}
+                      />
+                    )}
                   </div>
 
                   <div className="flex gap-2">
