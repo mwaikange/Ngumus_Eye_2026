@@ -45,6 +45,7 @@ export function GroupChat({ groupId, userId, isMember }: { groupId: string; user
   useEffect(() => {
     fetchMessages()
 
+    // Set up real-time subscription
     const channel = supabase
       .channel(`group:${groupId}`)
       .on(
@@ -56,6 +57,7 @@ export function GroupChat({ groupId, userId, isMember }: { groupId: string; user
           filter: `group_id=eq.${groupId}`,
         },
         (payload) => {
+          console.log("[v0] Real-time event received:", payload.eventType)
           if (payload.eventType === "INSERT") {
             fetchMessages()
           } else if (payload.eventType === "DELETE") {
@@ -63,10 +65,18 @@ export function GroupChat({ groupId, userId, isMember }: { groupId: string; user
           }
         },
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log("[v0] Subscription status:", status)
+      })
+
+    // Polling fallback - fetch messages every 3 seconds to catch any missed real-time events
+    const pollInterval = setInterval(() => {
+      fetchMessages()
+    }, 3000)
 
     return () => {
       supabase.removeChannel(channel)
+      clearInterval(pollInterval)
     }
   }, [groupId])
 
