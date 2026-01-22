@@ -50,7 +50,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         { href: "/feed", icon: Home, label: "Feed" },
         { href: "/map", icon: Map, label: "Map" },
         { href: "/report", icon: Plus, label: "Report" },
-        { href: "/case-deck", icon: Briefcase, label: "Cases" },
+        { href: "/case-deck", icon: Briefcase, label: "Files" },
         { href: "/groups", icon: Users, label: "Groups" },
         { href: "/profile", icon: User, label: "Profile" },
       ])

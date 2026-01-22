@@ -25,9 +25,8 @@ export default function ForgotPasswordPage() {
     setError(null)
 
     try {
-      // Use NEXT_PUBLIC_SITE_URL if available, otherwise fall back to window.location.origin
-      const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
-      const redirectUrl = `${baseUrl}/auth/reset-password`
+      // CRITICAL: Must use the exact production URL for password reset
+      const redirectUrl = "https://app.ngumus-eye.site/auth/reset-password"
 
       console.log("[v0] Password reset redirect URL:", redirectUrl)
 

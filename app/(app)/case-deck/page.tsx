@@ -38,19 +38,19 @@ export default async function CaseDeckPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-background">
-      <AppHeader title="My Case Deck" />
+      <AppHeader title="My File Deck" />
 
       <div className="container max-w-6xl px-4 py-6 space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">My Case Deck</h1>
+            <h1 className="text-2xl font-bold">My File Deck</h1>
             <p className="text-muted-foreground text-sm">Private investigator dashboard</p>
           </div>
           <Link href="/case-deck/new">
             <Button className="gap-2" size="sm">
               <Plus className="h-4 w-4" />
-              New Case
+              New File
             </Button>
           </Link>
         </div>
@@ -59,7 +59,7 @@ export default async function CaseDeckPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Active Cases</CardTitle>
+              <CardTitle className="text-sm font-medium">Active Files</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{activeCases.length}</div>
@@ -91,17 +91,17 @@ export default async function CaseDeckPage() {
           </Card>
         </div>
 
-        {/* Active Cases */}
+        {/* Active Files */}
         <div className="space-y-4">
-          <h2 className="text-xl font-semibold">Active Cases</h2>
+          <h2 className="text-xl font-semibold">Active Files</h2>
           {activeCases.length === 0 ? (
             <Card>
               <CardContent className="flex flex-col items-center justify-center py-12 text-center">
                 <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-                <CardTitle className="mb-2">No active cases</CardTitle>
-                <CardDescription className="mb-4">Open a new case to get started</CardDescription>
+                <CardTitle className="mb-2">No active files</CardTitle>
+                <CardDescription className="mb-4">Open a new file to get started</CardDescription>
                 <Link href="/case-deck/new">
-                  <Button>Open New Case</Button>
+                  <Button>Open New File</Button>
                 </Link>
               </CardContent>
             </Card>
@@ -114,10 +114,10 @@ export default async function CaseDeckPage() {
           )}
         </div>
 
-        {/* Closed Cases */}
+        {/* Closed Files */}
         {closedCases.length > 0 && (
           <div className="space-y-4">
-            <h2 className="text-xl font-semibold">Closed Cases</h2>
+            <h2 className="text-xl font-semibold">Closed Files</h2>
             <div className="grid gap-4 md:grid-cols-2">
               {closedCases.map((caseItem) => (
                 <CaseCard key={caseItem.id} caseItem={caseItem} />
@@ -147,7 +147,7 @@ export default async function CaseDeckPage() {
           <Link href="/case-deck/new">
             <Card className="hover:shadow-lg transition-shadow cursor-pointer bg-primary/5">
               <CardHeader>
-                <CardTitle className="text-lg">Open New Case</CardTitle>
+                <CardTitle className="text-lg">Open New File</CardTitle>
                 <CardDescription>Report a new incident</CardDescription>
               </CardHeader>
             </Card>

@@ -25,46 +25,42 @@ export default function ResetPasswordPage() {
   const router = useRouter()
 
   useEffect(() => {
-    const checkSession = async () => {
-      const supabase = createClient()
+    const supabase = createClient()
 
-      // Check for hash fragment (Supabase sometimes uses this for recovery)
-      const hash = window.location.hash
-      if (hash && hash.includes("access_token")) {
-        // Parse the hash to get the access token
-        const params = new URLSearchParams(hash.substring(1))
-        const accessToken = params.get("access_token")
-        const refreshToken = params.get("refresh_token")
-        const type = params.get("type")
-
-        if (accessToken && type === "recovery") {
-          // Set the session manually
-          const { error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken || "",
-          })
-
-          if (!error) {
-            setHasValidSession(true)
-            setIsCheckingSession(false)
-            // Clear the hash from URL
-            window.history.replaceState(null, "", window.location.pathname)
-            return
-          }
-        }
+    // Listen for PASSWORD_RECOVERY event
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("[v0] Auth event:", event)
+      
+      if (event === "PASSWORD_RECOVERY") {
+        console.log("[v0] Password recovery event detected")
+        setHasValidSession(true)
+        setIsCheckingSession(false)
+      } else if (session) {
+        setHasValidSession(true)
+        setIsCheckingSession(false)
+      } else if (event === "SIGNED_OUT" || event === "USER_DELETED") {
+        setHasValidSession(false)
+        setIsCheckingSession(false)
       }
+    })
 
-      // Check for existing session
+    // Also check initial session
+    const checkInitialSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession()
+      
       if (session) {
         setHasValidSession(true)
       }
       setIsCheckingSession(false)
     }
 
-    checkSession()
+    checkInitialSession()
+
+    return () => {
+      authListener.subscription.unsubscribe()
+    }
   }, [])
 
   const handleResetPassword = async (e: React.FormEvent) => {
