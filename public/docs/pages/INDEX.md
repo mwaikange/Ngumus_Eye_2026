@@ -88,4 +88,28 @@ All routes under `app/(app)/` are protected by `app/(app)/layout.tsx`, which cal
 
 ## Detailed Page Documentation
 
-See the combined document: `PAGES_FUNCTIONAL_DOCS.md`
+| Page | Doc File |
+|------|----------|
+| /auth/login | [auth-login.md](auth-login.md) |
+| /auth/sign-up | [auth-sign-up.md](auth-sign-up.md) |
+| /auth/forgot-password | [auth-forgot-password.md](auth-forgot-password.md) |
+| /auth/reset-password | [auth-reset-password.md](auth-reset-password.md) |
+| /feed | [feed.md](feed.md) |
+| /incident/[id] | [incident-id.md](incident-id.md) |
+| /report | [report.md](report.md) |
+| /map | [map.md](map.md) |
+| /case-deck | [case-deck.md](case-deck.md) |
+| /case-deck/new | [case-deck-new.md](case-deck-new.md) |
+| /case-deck/[id] | [case-deck-id.md](case-deck-id.md) |
+| /case-deck/devices | [case-deck-devices.md](case-deck-devices.md) |
+| /case-deck/support | [case-deck-support.md](case-deck-support.md) |
+| /groups | [groups.md](groups.md) |
+| /groups/create | [groups-create.md](groups-create.md) |
+| /groups/[id] | [groups-id.md](groups-id.md) |
+| /profile | [profile.md](profile.md) |
+| /profile/[id] | [profile-id.md](profile-id.md) |
+| /notifications | [notifications.md](notifications.md) |
+| /search | [search.md](search.md) |
+| /subscribe | [subscribe.md](subscribe.md) |
+| /admin/* (all admin pages) | [admin.md](admin.md) |
+| Cross-page flows | [cross-page-flows.md](cross-page-flows.md) |
