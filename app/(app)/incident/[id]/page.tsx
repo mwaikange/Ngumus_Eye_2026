@@ -66,10 +66,18 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   const allReactions = allReactionsResult.data
 
   const media = mediaResult.data?.map((record) => {
-    const { data: urlData } = supabase.storage.from("incident-media").getPublicUrl(record.path)
+    // If path is already a full public URL (e.g. Vercel Blob), use it directly.
+    // Otherwise treat it as a Supabase Storage key and build the public URL.
+    let url: string
+    if (record.path.startsWith("http://") || record.path.startsWith("https://")) {
+      url = record.path
+    } else {
+      const { data: urlData } = supabase.storage.from("incident-media").getPublicUrl(record.path)
+      url = urlData.publicUrl
+    }
     return {
       ...record,
-      url: urlData.publicUrl,
+      url,
     }
   })
 
