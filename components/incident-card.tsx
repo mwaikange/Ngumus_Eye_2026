@@ -197,7 +197,11 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
       {incident.reporter && (
         <div className="px-3 pb-3 border-t border-gray-100 pt-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
+            <Link
+              href={`/profile/${incident.reporter.id}`}
+              className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+              onClick={(e) => e.stopPropagation()}
+            >
               <Avatar className="h-7 w-7">
                 <AvatarImage src={incident.reporter.avatar_url || undefined} />
                 <AvatarFallback className="text-xs bg-primary/10 text-primary">
@@ -205,7 +209,7 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
                 </AvatarFallback>
               </Avatar>
               <div className="flex items-center gap-1.5">
-                <span className="text-xs text-gray-600">{incident.reporter.display_name}</span>
+                <span className="text-xs text-gray-600 font-medium">{incident.reporter.display_name}</span>
                 {incident.reporter.town && (
                   <>
                     <span className="text-xs text-gray-400">•</span>
@@ -213,7 +217,7 @@ export function IncidentCard({ incident, onFollow }: IncidentCardProps) {
                   </>
                 )}
               </div>
-            </div>
+            </Link>
 
             {/* Don't show follow button on own posts */}
             {!isOwnPost && (
