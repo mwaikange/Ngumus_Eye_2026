@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { NProgressBar } from "@/components/nprogress-bar"
 import { ToastProvider } from "@/components/toast-provider"
+import Script from "next/script"
 import { Suspense } from "react"
 import "./globals.css"
 
@@ -66,9 +67,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <script
+      <body className={`font-sans antialiased`}>
+        <Script
+          id="org-schema"
           type="application/ld+json"
+          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: JSON.stringify({
               "@context": "https://schema.org",
@@ -81,8 +84,6 @@ export default function RootLayout({
             }),
           }}
         />
-      </head>
-      <body className={`font-sans antialiased`}>
         <Suspense fallback={null}>
           <NProgressBar />
         </Suspense>
