@@ -1,6 +1,16 @@
 import { put } from "@vercel/blob"
 import { NextResponse } from "next/server"
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+}
+
+export async function OPTIONS() {
+  return new Response(null, { status: 204, headers: corsHeaders })
+}
+
 export async function POST(request: Request) {
   try {
     console.log("[v0] Upload API called")
@@ -9,7 +19,7 @@ export async function POST(request: Request) {
 
     if (!file) {
       console.error("[v0] No file provided in upload request")
-      return NextResponse.json({ error: "No file provided" }, { status: 400 })
+      return NextResponse.json({ error: "No file provided" }, { status: 400, headers: corsHeaders })
     }
 
     console.log("[v0] Uploading file:", file.name, file.type, file.size)
@@ -17,13 +27,13 @@ export async function POST(request: Request) {
     const maxSize = file.type.startsWith("video/") ? 50 * 1024 * 1024 : 10 * 1024 * 1024
     if (file.size > maxSize) {
       const maxSizeMB = file.type.startsWith("video/") ? 50 : 10
-      return NextResponse.json({ error: `File too large. Maximum size is ${maxSizeMB}MB` }, { status: 400 })
+      return NextResponse.json({ error: `File too large. Maximum size is ${maxSizeMB}MB` }, { status: 400, headers: corsHeaders })
     }
 
     // Validate file type
     const allowedTypes = /^(image|video)\//
     if (!allowedTypes.test(file.type)) {
-      return NextResponse.json({ error: "Invalid file type. Only images and videos are allowed" }, { status: 400 })
+      return NextResponse.json({ error: "Invalid file type. Only images and videos are allowed" }, { status: 400, headers: corsHeaders })
     }
 
     const blob = await put(file.name, file, {
@@ -31,9 +41,9 @@ export async function POST(request: Request) {
     })
 
     console.log("[v0] File uploaded successfully:", blob.url)
-    return NextResponse.json({ url: blob.url })
+    return NextResponse.json({ url: blob.url }, { headers: corsHeaders })
   } catch (error) {
     console.error("[v0] Upload error:", error)
-    return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed" }, { status: 500 })
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Upload failed" }, { status: 500, headers: corsHeaders })
   }
 }

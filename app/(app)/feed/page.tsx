@@ -149,6 +149,11 @@ export default function FeedPage() {
           row.incident_media
             ?.map((m: any) => {
               if (!m.path) return null
+              // If path is already a full public URL (e.g. Vercel Blob), use it directly.
+              // Otherwise treat it as a Supabase Storage key and build the public URL.
+              if (m.path.startsWith("http://") || m.path.startsWith("https://")) {
+                return m.path
+              }
               const { data } = supabase.storage.from("incident-media").getPublicUrl(m.path)
               return data.publicUrl
             })
