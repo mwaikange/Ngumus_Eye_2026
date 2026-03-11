@@ -124,42 +124,103 @@ export async function toggleReaction(incidentId: string, kind: "upvote" | "downv
     return { error: "Not authenticated" }
   }
 
-  // Check if reaction exists in new incident_reactions table
-  const { data: existing } = await supabase
+  // Fetch ALL existing reactions this user has on this incident
+  const { data: existingAll } = await supabase
     .from("incident_reactions")
-    .select("id")
+    .select("id, reaction_type")
     .eq("incident_id", incidentId)
     .eq("user_id", user.id)
-    .eq("reaction_type", kind)
-    .maybeSingle()
+
+  const existing = existingAll?.find((r) => r.reaction_type === kind)
 
   if (existing) {
-    // Remove reaction
+    // Tapping same reaction again → remove it (toggle off)
     const { error } = await supabase.from("incident_reactions").delete().eq("id", existing.id)
-
-    if (error) {
-      return { error: error.message }
-    }
-
+    if (error) return { error: error.message }
     revalidatePath(`/incident/${incidentId}`)
     revalidatePath("/feed")
     return { data: { removed: true } }
-  } else {
-    // Add reaction - weight will be calculated by database trigger
-    const { error } = await supabase.from("incident_reactions").insert({
-      incident_id: incidentId,
-      user_id: user.id,
-      reaction_type: kind,
-    })
-
-    if (error) {
-      return { error: error.message }
-    }
-
-    revalidatePath(`/incident/${incidentId}`)
-    revalidatePath("/feed")
-    return { data: { added: true } }
   }
+
+  // Mutual exclusivity: upvote and downvote cancel each other out
+  // love and confirm are independent but a user still can only have one of each
+  const conflicting = existingAll?.filter((r) => {
+    if (kind === "upvote") return r.reaction_type === "downvote"
+    if (kind === "downvote") return r.reaction_type === "upvote"
+    return false
+  })
+
+  if (conflicting && conflicting.length > 0) {
+    // Remove the conflicting reaction before adding the new one
+    await supabase
+      .from("incident_reactions")
+      .delete()
+      .in("id", conflicting.map((r) => r.id))
+  }
+
+  // Add the new reaction
+  const { error: insertError } = await supabase.from("incident_reactions").insert({
+    incident_id: incidentId,
+    user_id: user.id,
+    reaction_type: kind,
+  })
+
+  if (insertError) return { error: insertError.message }
+
+  // Notify the post creator (skip if reacting to own post)
+  const { data: incident } = await supabase
+    .from("incidents")
+    .select("created_by, title")
+    .eq("id", incidentId)
+    .maybeSingle()
+
+  if (incident && incident.created_by !== user.id) {
+    const reactionLabel =
+      kind === "upvote" ? "an upvote" :
+      kind === "downvote" ? "a downvote" :
+      kind === "love" ? "some love" :
+      "a confirmation"
+
+    await supabase.from("notifications").insert({
+      user_id: incident.created_by,
+      type: "reaction",
+      metadata: {
+        incident_id: incidentId,
+        incident_title: incident.title,
+        reactor_id: user.id,
+        reaction_type: kind,
+        message: `Your post received ${reactionLabel}`,
+      },
+      is_read: false,
+    })
+  }
+
+  revalidatePath(`/incident/${incidentId}`)
+  revalidatePath("/feed")
+  return { data: { added: true } }
+}
+
+export async function toggleFollowIncident(incidentId: string) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: "Not authenticated" }
+
+  const { data: existing } = await supabase
+    .from("incident_followers")
+    .select("id")
+    .eq("incident_id", incidentId)
+    .eq("user_id", user.id)
+    .maybeSingle()
+
+  if (existing) {
+    await supabase.from("incident_followers").delete().eq("id", existing.id)
+    revalidatePath(`/incident/${incidentId}`)
+    return { data: { following: false } }
+  }
+
+  await supabase.from("incident_followers").insert({ incident_id: incidentId, user_id: user.id })
+  revalidatePath(`/incident/${incidentId}`)
+  return { data: { following: true } }
 }
 
 export async function addComment(incidentId: string, body: string, imageUrl?: string | null) {
@@ -205,6 +266,50 @@ export async function addComment(incidentId: string, body: string, imageUrl?: st
     ...comment,
     profiles: profile || { display_name: "Anonymous", avatar_url: null },
   }
+
+  // Fire notifications asynchronously — don't block the response
+  const commenterName = profile?.display_name || "Someone"
+  supabase
+    .from("incidents")
+    .select("created_by, title")
+    .eq("id", incidentId)
+    .maybeSingle()
+    .then(async ({ data: incident }) => {
+      if (!incident) return
+
+      const notifySet = new Set<string>()
+
+      // Always notify post creator (unless they're the commenter)
+      if (incident.created_by !== user.id) {
+        notifySet.add(incident.created_by)
+      }
+
+      // Notify all followers of this incident (except commenter)
+      const { data: followers } = await supabase
+        .from("incident_followers")
+        .select("user_id")
+        .eq("incident_id", incidentId)
+        .neq("user_id", user.id)
+
+      followers?.forEach((f) => notifySet.add(f.user_id))
+
+      if (notifySet.size === 0) return
+
+      const notifications = Array.from(notifySet).map((uid) => ({
+        user_id: uid,
+        type: "comment",
+        metadata: {
+          incident_id: incidentId,
+          incident_title: incident.title,
+          commenter_id: user.id,
+          commenter_name: commenterName,
+          message: `${commenterName} commented on "${incident.title}"`,
+        },
+        is_read: false,
+      }))
+
+      await supabase.from("notifications").insert(notifications)
+    })
 
   revalidatePath(`/incident/${incidentId}`)
 
