@@ -181,17 +181,12 @@ export async function toggleReaction(incidentId: string, kind: "upvote" | "downv
       kind === "love" ? "some love" :
       "a confirmation"
 
-    await supabase.from("notifications").insert({
+    await supabase.from("user_notifications").insert({
       user_id: incident.created_by,
       type: "reaction",
-      metadata: {
-        incident_id: incidentId,
-        incident_title: incident.title,
-        reactor_id: user.id,
-        reaction_type: kind,
-        message: `Your post received ${reactionLabel}`,
-      },
-      is_read: false,
+      title: "Your post got a reaction",
+      message: `Your post "${incident.title}" received ${reactionLabel}`,
+      entity_id: incidentId,
     })
   }
 
@@ -298,17 +293,12 @@ export async function addComment(incidentId: string, body: string, imageUrl?: st
       const notifications = Array.from(notifySet).map((uid) => ({
         user_id: uid,
         type: "comment",
-        metadata: {
-          incident_id: incidentId,
-          incident_title: incident.title,
-          commenter_id: user.id,
-          commenter_name: commenterName,
-          message: `${commenterName} commented on "${incident.title}"`,
-        },
-        is_read: false,
+        title: "New comment on a post",
+        message: `${commenterName} commented on "${incident.title}"`,
+        entity_id: incidentId,
       }))
 
-      await supabase.from("notifications").insert(notifications)
+      await supabase.from("user_notifications").insert(notifications)
     })
 
   revalidatePath(`/incident/${incidentId}`)

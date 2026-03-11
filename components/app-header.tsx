@@ -7,7 +7,8 @@ import { Bell, Search, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
 
 interface AppHeaderProps {
   title: string
@@ -18,6 +19,22 @@ interface AppHeaderProps {
 export function AppHeader({ title, showSearch = false, backHref }: AppHeaderProps) {
   const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
+  const [unreadCount, setUnreadCount] = useState(0)
+  const supabase = createClient()
+
+  useEffect(() => {
+    async function fetchUnread() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { count } = await supabase
+        .from("user_notifications")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .is("read_at", null)
+      setUnreadCount(count || 0)
+    }
+    fetchUnread()
+  }, [])
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,8 +75,10 @@ export function AppHeader({ title, showSearch = false, backHref }: AppHeaderProp
         <div className="ml-auto flex items-center gap-2">
           <Button variant="ghost" size="icon" className="relative" onClick={() => router.push("/notifications")}>
             <Bell className="h-5 w-5" />
-            <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
-            <span className="sr-only">Notifications</span>
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-destructive" />
+            )}
+            <span className="sr-only">Notifications ({unreadCount} unread)</span>
           </Button>
         </div>
       </div>

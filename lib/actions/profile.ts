@@ -74,13 +74,19 @@ export async function followUser(userId: string) {
     return { error: error.message }
   }
 
-  await supabase.from("notifications").insert({
+  // Fetch follower display name for the notification message
+  const { data: followerProfile } = await supabase
+    .from("profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .maybeSingle()
+
+  await supabase.from("user_notifications").insert({
     user_id: userId,
     type: "new_follower",
-    metadata: {
-      follower_id: user.id,
-    },
-    is_read: false,
+    title: "New follower",
+    message: `${followerProfile?.display_name || "Someone"} started following you`,
+    entity_id: user.id,
   })
 
   revalidatePath("/feed")
