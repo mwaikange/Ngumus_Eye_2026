@@ -69,6 +69,8 @@ export default function FeedPage() {
       setLoading(true)
       const supabase = createClient()
 
+      const now = new Date().toISOString()
+
       let query = supabase
         .from("incidents")
         .select(`
@@ -88,6 +90,8 @@ export default function FeedPage() {
           incident_media(path),
           profiles!incidents_created_by_fkey(id, display_name, avatar_url)
         `)
+        // Only show non-expired posts across ALL tabs
+        .or(`expires_at.is.null,expires_at.gt.${now}`)
         .order("created_at", { ascending: false })
         .limit(40)
 
@@ -140,7 +144,7 @@ export default function FeedPage() {
         filteredIncidents = filteredIncidents.filter((row: any) => {
           if (!row.lat || !row.lng) return false
           const distance = calculateDistance(userLocation.lat, userLocation.lng, row.lat, row.lng)
-          return distance <= 5 // 5km radius
+          return distance <= 50 // 50km radius
         })
       }
 
@@ -246,7 +250,7 @@ export default function FeedPage() {
               <p className="text-gray-500 mb-2">No incidents nearby</p>
               <p className="text-gray-400 text-sm mb-4">
                 {userLocation
-                  ? "There are no reported incidents within 5km of your location"
+                  ? "There are no reported incidents within 50km of your location"
                   : "Enable location access to see nearby incidents"}
               </p>
               <Button asChild variant="outline">
