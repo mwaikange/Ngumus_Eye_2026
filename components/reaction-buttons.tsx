@@ -29,15 +29,29 @@ export function ReactionButtons({
 
   const handleReaction = (kind: "upvote" | "downvote" | "love" | "confirm") => {
     const hasReaction = localReactions.includes(kind)
+    const opposite = kind === "upvote" ? "downvote" : kind === "downvote" ? "upvote" : null
 
-    // Optimistic update
-    if (hasReaction) {
-      setLocalReactions((prev) => prev.filter((r) => r !== kind))
-      setCounts((prev) => ({ ...prev, [kind + "s"]: prev[(kind + "s") as keyof typeof prev] - 1 }))
-    } else {
-      setLocalReactions((prev) => [...prev, kind])
-      setCounts((prev) => ({ ...prev, [kind + "s"]: prev[(kind + "s") as keyof typeof prev] + 1 }))
-    }
+    setLocalReactions((prev) => {
+      let next = prev.filter((r) => r !== kind)
+      if (!hasReaction) {
+        // Remove opposite if switching (upvote↔downvote only)
+        if (opposite) next = next.filter((r) => r !== opposite)
+        next = [...next, kind]
+      }
+      return next
+    })
+
+    setCounts((prev) => {
+      const next = { ...prev }
+      const key = (kind + "s") as keyof typeof prev
+      next[key] = (hasReaction ? prev[key] - 1 : prev[key] + 1) as never
+      // Also decrement opposite if it was active
+      if (!hasReaction && opposite && prev[(opposite + "s") as keyof typeof prev] > 0 && localReactions.includes(opposite)) {
+        const oppKey = (opposite + "s") as keyof typeof prev
+        next[oppKey] = (prev[oppKey] - 1) as never
+      }
+      return next
+    })
 
     startTransition(async () => {
       await toggleReaction(incidentId, kind)

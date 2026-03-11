@@ -11,6 +11,7 @@ import { formatDistanceToNow } from "date-fns"
 import { ReactionButtons } from "@/components/reaction-buttons"
 import { CommentSection } from "@/components/comment-section"
 import { MediaGallery } from "@/components/media-gallery"
+import { FollowIncidentButton } from "@/components/follow-incident-button"
 
 const verificationLabels = ["Unverified", "Witness Verified", "Moderator Verified", "Partner Verified"]
 const statusColors = {
@@ -43,7 +44,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
   }
 
   // Fetch related data in parallel
-  const [incidentTypeResult, profileResult, eventsResult, commentsResult, mediaResult, allReactionsResult] =
+  const [incidentTypeResult, profileResult, eventsResult, commentsResult, mediaResult, allReactionsResult, followResult] =
     await Promise.all([
       supabase.from("incident_types").select("*").eq("id", incident.type_id).maybeSingle(),
       supabase.from("profiles").select("id, display_name, trust_score").eq("id", incident.created_by).maybeSingle(),
@@ -59,11 +60,18 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
         .order("created_at", { ascending: false }),
       supabase.from("incident_media").select("*").eq("incident_id", id),
       supabase.from("incident_reactions").select("reaction_type, user_id").eq("incident_id", id),
+      supabase
+        .from("incident_followers")
+        .select("id")
+        .eq("incident_id", id)
+        .eq("user_id", user?.id ?? "")
+        .maybeSingle(),
     ])
 
   const events = eventsResult.data
   const comments = commentsResult.data
   const allReactions = allReactionsResult.data
+  const isFollowing = !!followResult?.data
 
   const media = mediaResult.data?.map((record) => {
     // If path is already a full public URL (e.g. Vercel Blob), use it directly.
@@ -183,9 +191,7 @@ export default async function IncidentPage({ params }: { params: Promise<{ id: s
             />
 
             <div className="flex gap-2">
-              <Button variant="outline" size="sm">
-                Follow
-              </Button>
+              <FollowIncidentButton incidentId={id} initialIsFollowing={isFollowing} />
               <Button variant="outline" size="sm">
                 Share
               </Button>

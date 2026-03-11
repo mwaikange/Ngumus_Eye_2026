@@ -53,8 +53,13 @@ export default function NotificationsPage() {
 
   const handleNotificationClick = async (notification: Notification) => {
     await supabase.from("user_notifications").update({ read_at: new Date().toISOString() }).eq("id", notification.id)
+    setNotifications((prev) =>
+      prev.map((n) => (n.id === notification.id ? { ...n, read_at: new Date().toISOString() } : n))
+    )
 
-    if (notification.type === "follow" && notification.entity_id) {
+    if ((notification.type === "reaction" || notification.type === "comment") && notification.entity_id) {
+      router.push(`/incident/${notification.entity_id}`)
+    } else if ((notification.type === "new_follower" || notification.type === "follow") && notification.entity_id) {
       router.push(`/profile/${notification.entity_id}`)
     } else if (
       (notification.type === "group_request" || notification.type === "group_joined") &&
@@ -68,8 +73,13 @@ export default function NotificationsPage() {
 
   const getIcon = (type: string) => {
     switch (type) {
+      case "new_follower":
       case "follow":
         return <UserPlus className="h-4 w-4 text-primary" />
+      case "reaction":
+        return <CheckCircle2 className="h-4 w-4 text-rose-500" />
+      case "comment":
+        return <Bell className="h-4 w-4 text-blue-500" />
       case "group_request":
         return <Users className="h-4 w-4 text-blue-500" />
       case "group_joined":
