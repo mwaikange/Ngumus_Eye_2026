@@ -40,8 +40,7 @@ export async function GET(request: Request) {
       .eq("admin_verified", true)
       .not("lat", "is", null)
       .not("lng", "is", null)
-      .or("expires_at.is.null,expires_at.gt." + new Date().toISOString())
-      .or("verified_expiry.is.null,verified_expiry.gt." + new Date().toISOString())
+      .gt("verified_expiry", new Date().toISOString())
       .order("created_at", { ascending: false })
       .limit(100)
 
