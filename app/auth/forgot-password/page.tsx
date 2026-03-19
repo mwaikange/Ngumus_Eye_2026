@@ -1,3 +1,4 @@
+// app/auth/forgot-password/page.tsx - UPDATED VERSION
 "use client"
 
 import type React from "react"
@@ -34,6 +35,33 @@ export default function ForgotPasswordPage() {
         redirectTo: redirectUrl,
       })
       if (error) throw error
+
+      // NEW: Send custom email via your API endpoint
+      // This ensures Gmail and other providers receive it
+      try {
+        const emailResponse = await fetch('/api/auth/send-password-reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: email,
+            resetUrl: redirectUrl,
+            displayName: 'User',
+          }),
+        })
+
+        if (!emailResponse.ok) {
+          console.warn('[v0] Custom email failed:', await emailResponse.json())
+          // Don't fail - Supabase email was already sent
+        } else {
+          console.log('[v0] Custom email sent successfully')
+        }
+      } catch (emailError) {
+        console.warn('[v0] Custom email fetch failed:', emailError)
+        // Don't fail - Supabase email was already sent
+      }
+
       setSuccess(true)
     } catch (error: unknown) {
       console.log("[v0] Password reset error:", error)
