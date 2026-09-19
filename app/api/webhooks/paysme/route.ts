@@ -6,6 +6,7 @@ export const runtime = "nodejs"
 
 const PAYSME_MERCHANT_ID = "ae4dc707-394b-43cc-9610-0e7eaed46bdb"
 const INVOICE_PATTERN = /^NGUMU__([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})__([a-z0-9_]+)__([0-9]{8})$/i
+const REQUEST_PATTERN = /^mobile-order-NGUMU__([0-9a-f-]{36})__([a-z0-9_]+)__[0-9]{8}$/i
 
 function validSignature(rawBody: string, signatureHeader: string | null, secret: string) {
   if (!signatureHeader?.startsWith("sha256=")) return false
@@ -50,8 +51,14 @@ export async function POST(request: Request) {
 
   const invoiceId = String(payload.invoice_id || "")
   const invoice = INVOICE_PATTERN.exec(invoiceId)
-  if (!invoice) {
-    return NextResponse.json({ error: "Invalid Ngumu invoice reference" }, { status: 400 })
+  const requestReference = REQUEST_PATTERN.exec(String(payload.idempotency_key || ""))
+  const metadata = payload.metadata && typeof payload.metadata === "object"
+    ? payload.metadata as Record<string, unknown>
+    : null
+  const userId = String(metadata?.user_id || requestReference?.[1] || invoice?.[1] || "")
+  const planCode = String(metadata?.plan_code || requestReference?.[2] || invoice?.[2] || "")
+  if (!userId || !planCode) {
+    return NextResponse.json({ error: "Invalid Ngumu payment reference" }, { status: 400 })
   }
 
   const amount = Number(payload.amount)
@@ -71,9 +78,9 @@ export async function POST(request: Request) {
   const { data, error } = await supabase.rpc("fulfill_paysme_payment", {
     p_transaction_id: transactionId,
     p_generated_code: String(payload.generated_code || ""),
-    p_invoice_id: invoiceId,
-    p_user_id: invoice[1],
-    p_plan_code: invoice[2],
+    p_invoice_id: invoice ? invoiceId : `${invoiceId}__${transactionId}`,
+    p_user_id: userId,
+    p_plan_code: planCode,
     p_amount_cents: Math.round(amount * 100),
     p_currency: String(payload.currency || ""),
     p_paid_at: payload.paid_at ? String(payload.paid_at) : new Date().toISOString(),
